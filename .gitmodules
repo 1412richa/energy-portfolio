@@ -1,0 +1,3 @@
+[submodule "01-price-forecasting/de-power-price-analysis"]
+	path = 01-price-forecasting/de-power-price-analysis
+	url = https://github.com/1412richa/de-power-price-analysis
