@@ -1,1 +1,14 @@
-
+pandas==3.0.6
+numpy==2.4.6
+scikit-learn==1.9.1
+lightgbm==4.7.0
+statsmodels==0.15.0
+matplotlib==3.11.2
+plotly==7.1.0
+streamlit==1.65.0
+entsoe-py==0.8.1
+requests==2.34.2
+python-dotenv==1.2.4
+yfinance==1.7.0
+holidays==0.105
+ipykernel==7.4.0

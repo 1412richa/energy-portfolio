@@ -21,3 +21,12 @@ Modelling customer switching behaviour under tariff changes; constraint-based ta
 **Data sources**: ENTSO-E Transparency Platform, Open Power System Data, Open-Meteo.
 
 **Stack**: Python (pandas, scikit-learn, LightGBM, statsmodels), Streamlit.
+
+---
+**Setup**
+```
+python -m venv .venv
+.venv/Scripts/activate
+pip install -r requirements.txt
+```
+> Add ENTSOE_API_KEY=your_key to a .env file
