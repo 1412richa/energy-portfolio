@@ -11,7 +11,7 @@ Rule: every feature must be knowable at that moment.
 | Solar forecast | Supply curve shift | Yes (forecast) | ENTSO-E | Convert to UTC; aggregate 15-min → hourly mean; handle DST | [ ] |
 | Residual load forecast | Depth into thermal stack | Yes (derived) | ENTSO-E | load_fc - wind_on_fc - wind_off_fc - solar_fc | [ ] |
 | Temperature | Heating demand | Yes (forecast) | Open-Meteo Historical Forecast API | Average across cities → heating degree hours: max(0, 15-T) | [ ] |
-| TTF gas price | Thermal segment height | Yes (last settlement) | yfinance Dutch TTF Futures Tickers (front-month futures used as proxies for the prices) | Daily settlement; forward-fill weekends and holidays; lag one trading day | [ ] |
+| TTF gas price | Thermal segment height | Yes (last settlement) | yfinance Dutch TTF Futures Tickers. TTF front-month used as proxy for German gas costs (THE). The THE–TTF spread is usually small but widened in 2022; possible source of residual error in the crisis period. | Daily settlement; forward-fill weekends and holidays; lag one trading day | [ ] |
 | EUA carbon price | Thermal segment height | Yes (last settlement) | ENTSO-E | Daily settlement; forward-fill weekends and holidays; lag one trading day | [ ] |
 | Calendar (hour, weekday, month) | Demand curve shape | Yes | python holidays package, country DE | One-hot hour and weekday; month as categorical | [ ] |
 | Public holidays / bridge days | Low-demand days | Yes | python holidays package, country DE; national holidays plus a state-share weighting optional; bridge days are derived: weekday between holiday and weekend | Binary national-holiday flag; separate bridge-day flag | [ ] |
