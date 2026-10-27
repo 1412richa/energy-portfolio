@@ -6,16 +6,16 @@ Rule: every feature must be knowable at that moment.
 ## Source and transformation
 | Feature | Mechanism | Known at noon D-1? | Source | Transformation | Status |
 |---|---|---|---|---|---|
-| Load forecast | Demand position on merit order | Yes (forecast) | ENTSO-E | Convert to UTC; aggregate 15-min → hourly mean; handle DST | [ ] |
-| Wind on/offshore forecast | Supply curve shift | Yes (forecast) | ENTSO-E | Convert to UTC; aggregate 15-min → hourly mean; handle DST | [ ] |
-| Solar forecast | Supply curve shift | Yes (forecast) | ENTSO-E | Convert to UTC; aggregate 15-min → hourly mean; handle DST | [ ] |
-| Residual load forecast | Depth into thermal stack | Yes (derived) | ENTSO-E | load_fc - wind_on_fc - wind_off_fc - solar_fc | [ ] |
+| Load forecast | Demand position on merit order | Yes (forecast) | ENTSO-E | Convert to UTC; aggregate 15-min → hourly mean; handle DST | :white_check_mark: |
+| Wind on/offshore forecast | Supply curve shift | Yes (forecast) | ENTSO-E | Convert to UTC; aggregate 15-min → hourly mean; handle DST | :white_check_mark: |
+| Solar forecast | Supply curve shift | Yes (forecast) | ENTSO-E | Convert to UTC; aggregate 15-min → hourly mean; handle DST | :white_check_mark: |
+| Residual load forecast | Depth into thermal stack | Yes (derived) | ENTSO-E | load_fc - wind_on_fc - wind_off_fc - solar_fc | :white_check_mark: |
 | Temperature | Heating demand | Yes (forecast) | Open-Meteo Historical Forecast API | Average across cities → heating degree hours: max(0, 15-T) | [ ] |
 | TTF gas price | Thermal segment height | Yes (last settlement) | yfinance Dutch TTF Futures Tickers. TTF front-month used as proxy for German gas costs (THE). The THE–TTF spread is usually small but widened in 2022; possible source of residual error in the crisis period. | Daily settlement; forward-fill weekends and holidays; lag one trading day | [ ] |
 | EUA carbon price | Thermal segment height | Yes (last settlement) | ENTSO-E | Daily settlement; forward-fill weekends and holidays; lag one trading day | [ ] |
 | Calendar (hour, weekday, month) | Demand curve shape | Yes | python holidays package, country DE | One-hot hour and weekday; month as categorical | [ ] |
 | Public holidays / bridge days | Low-demand days | Yes | python holidays package, country DE; national holidays plus a state-share weighting optional; bridge days are derived: weekday between holiday and weekend | Binary national-holiday flag; separate bridge-day flag | [ ] |
-| Price lags D-1, D-2, D-3, D-7 | Persistence | Yes | ENTSO-E; derived from day-ahead prices | Same hour on D-1, D-2, D-3, D-7; plus D-1 daily mean, min, max | [ ] |
+| Price lags D-1, D-2, D-3, D-7 | Persistence | Yes | ENTSO-E; derived from day-ahead prices | Same hour on D-1, D-2, D-3, D-7; plus D-1 daily mean, min, max | :white_check_mark: |
 
 Hourly resolution for consistency across 2020–2025 data; 15-min extension is future work.
 
@@ -25,3 +25,6 @@ Hourly resolution for consistency across 2020–2025 data; 15-min extension is f
 - [ ] No intraday price lags (no t-1h) - full day lags only
 - [ ] Fuel prices lagged to the last settlement before noon D-1
 - [ ] Train/test split by time, never shuffled
+
+## Data Quality
+- Load forecast missing for one full day in Feb 23 2022 (right before the Russia-Ukrain War); rows kept for lag computation but excluded from training. Short gaps (≤1 h) interpolated and flagged.
