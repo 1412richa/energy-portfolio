@@ -2,7 +2,6 @@
 # Setup
 import os
 import time
-from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -12,18 +11,10 @@ from entsoe.exceptions import NoMatchingDataError
 import matplotlib.pyplot as plt
 import numpy as np
 
+from project_paths import find_project_root
+
 load_dotenv()
 client = EntsoePandasClient(api_key=os.getenv("ENTSOE_API_KEY"))
-
-def find_project_root(name: str = "01-price-forecasting") -> Path:
-    """Locate the project folder whether you run from src/, the project, or the repo root."""
-    here = Path.cwd().resolve()
-    for folder in [here, *here.parents]:
-        if folder.name == name:
-            return folder
-        if (folder / name).is_dir():
-            return folder / name
-    raise FileNotFoundError(f"Could not find '{name}' from {here}")
 
 PROJECT = find_project_root()
 RAW = PROJECT / "data" / "raw"
@@ -99,7 +90,7 @@ df = prices.join(load, how="left").join(ws_fc, how="left")
 # Trim to the German calendar period 2020–2025
 start = pd.Timestamp("2020-01-01", tz="Europe/Berlin")
 end   = pd.Timestamp("2026-01-01", tz="Europe/Berlin")
-df = df[(df.index > start) & (df.index < end)].copy()
+df = df[(df.index >= start) & (df.index < end)].copy()
 
 # %%
 # Handle gaps: interpolate short ones, flag long ones

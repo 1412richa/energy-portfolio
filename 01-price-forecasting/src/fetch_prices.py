@@ -2,21 +2,12 @@
 # Setup
 import os
 import time
-from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
 from entsoe import EntsoePandasClient
 
-def find_project_root(name: str = "01-price-forecasting") -> Path:
-    """Locate the project folder whether you run from src/, the project, or the repo root."""
-    here = Path.cwd().resolve()
-    for folder in [here, *here.parents]:
-        if folder.name == name:
-            return folder
-        if (folder / name).is_dir():
-            return folder / name
-    raise FileNotFoundError(f"Could not find '{name}' from {here}")
+from project_paths import find_project_root
 
 PROJECT = find_project_root()
 RAW = PROJECT / "data" / "raw" / "prices"
