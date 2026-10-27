@@ -1,4 +1,5 @@
 # %%
+# Setup
 import os
 import time
 from pathlib import Path
@@ -28,6 +29,7 @@ load_dotenv()
 client = EntsoePandasClient(api_key=os.getenv("ENTSOE_API_KEY"))
 
 # %%
+# Test with one month
 test = client.query_day_ahead_prices(
     "DE_LU",
     start=pd.Timestamp("2024-03-01", tz="Europe/Berlin"),
@@ -38,6 +40,7 @@ print(test.head())
 print(test.index.tz, len(test))
 
 # %%
+# Download year by year, saving each year
 def fetch_year(year: int, retries: int = 3) -> pd.Series:
     out = RAW / f"da_prices_{year}.csv"
     if out.exists():
@@ -64,6 +67,7 @@ def fetch_year(year: int, retries: int = 3) -> pd.Series:
 series = [fetch_year(y) for y in range(2020, 2026)]
 
 # %%
+# Combine and convert to hourly
 prices = pd.concat(series).sort_index()
 prices.index = pd.to_datetime(prices.index, utc=True)
 
@@ -78,6 +82,7 @@ print(prices.index.to_series().diff().value_counts().head())
 hourly = prices.resample("h").mean()
 
 # %%
+# Quality checks
 # 1. Missing hours (resample turns gaps into NaN)
 print("Missing hours:", hourly.isna().sum())
 print(hourly[hourly.isna()].index[:10])
@@ -94,6 +99,7 @@ summary = hourly.groupby(hourly.index.year).agg(
 print(summary.round(1))
 
 # %%
+# Save the clean file
 hourly.index.name = "timestamp_utc"
 hourly.to_frame().to_csv(PROCESSED / "da_prices_hourly_utc.csv")
 print(hourly.index.min(), "to", hourly.index.max(), "|", len(hourly), "rows")
