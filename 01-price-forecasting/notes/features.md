@@ -27,9 +27,10 @@ Hourly resolution for consistency across 2020–2025 data; 15-min extension is f
 - [ ] Train/test split by time, never shuffled
 
 ## Data Quality
+### Load Forecast
 - Load forecast missing for one full day in Feb 23 2022 (right before the Russia-Ukrain War); rows kept for lag computation but excluded from training. Short gaps (≤3 h) interpolated and flagged.
 
-## Temperature
+### Temperature
 - **Why not the Historical Forecast API:** it is stitched together from the first hours of each model run, so it is close to observed weather, not a D-1 forecast.
 - **Source used:** Previous Runs API, GFS (`gfs_seamless`), `temperature_2m_previous_day2`. A run at least ~48 h old predates noon D-1 for every delivery hour of D. One model is pinned for the whole period so forecast quality does not change mid-sample. GFS history starts 2021-03-25; ICON and ECMWF only from early 2024.
 - **Fallback:** observed temperature (Archive API) fills hours with no forecast: all of 2020, 2021-01-01 to 2021-03-24, and GFS gaps (0.5% of 2023, 5.3% of 2024). Flagged as `temp_is_actual`; 22.8% of 2021 is fallback.
