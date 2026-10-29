@@ -220,3 +220,7 @@ __marimo__/
 
 # CSV files
 *.csv
+
+# Excel files
+*.xls
+*.xlsx

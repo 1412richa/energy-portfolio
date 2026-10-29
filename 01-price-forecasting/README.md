@@ -2,7 +2,7 @@
 
 Forecasting hourly German day-ahead electricity prices (bidding zone DE-LU) from market fundamentals. The plan is to compare a statistical baseline (LEAR/SARIMA) against LightGBM and an LSTM.
 
-**Status:** data pipeline in progress. Prices, load and wind/solar forecasts, and temperature are fetched, cleaned and merged into one hourly table for 2020–2025. Fuel and carbon prices, calendar features and modelling are next.
+**Status:** data pipeline in progress. Prices, load and wind/solar forecasts, temperature, and gas, carbon and coal prices are fetched, cleaned and merged into one hourly table for 2020–2025. Calendar features, price lags and modelling are next.
 
 ## Forecasting setup
 
@@ -22,8 +22,11 @@ Run the scripts in this order; each one reads the previous one's output.
 | 1 | [src/fetch_prices.py](src/fetch_prices.py) | ENTSO-E day-ahead prices | `da_prices_hourly_utc.csv` |
 | 2 | [src/fetch_fundamentals.py](src/fetch_fundamentals.py) | ENTSO-E load and wind/solar forecasts | `model_base_hourly_utc.csv` |
 | 3 | [src/fetch_weather.py](src/fetch_weather.py) | Open-Meteo Previous Runs and Archive APIs | `weather_hourly_utc.csv`, and adds temperature columns to `model_base_hourly_utc.csv` |
+| 4 | [src/fetch_fuels.py](src/fetch_fuels.py) | yfinance (TTF gas, API2 coal, EUR/USD), EEX (EUA auctions) | `fuels_daily.csv` (per delivery day, already lagged), and adds fuel columns to `model_base_hourly_utc.csv` |
 
-Raw downloads are cached in `data/raw/` (per year for ENTSO-E, per city for weather), so a re-run only calls the APIs for files that are missing. CSV files are not committed to git; run the pipeline to rebuild them.
+Steps 3 and 4 each add their columns to the base file, and step 2 rebuilds it from scratch, so after re-running step 2, re-run steps 3 and 4.
+
+Raw downloads are cached in `data/raw/` (per year for ENTSO-E and EEX, per city for weather, per ticker for yfinance), so a re-run only calls the APIs for files that are missing. CSV files are not committed to git; run the pipeline to rebuild them.
 
 [src/project_paths.py](src/project_paths.py) holds `find_project_root`, shared by all scripts so they find `data/` from any working directory.
 
@@ -39,6 +42,10 @@ Raw downloads are cached in `data/raw/` (per year for ENTSO-E, per city for weat
 | `temp_c` | Population-weighted temperature forecast (actuals where flagged) | Yes |
 | `hdh` | Heating degree hours, max(0, 15.5 − `temp_c`) | Yes |
 | `temp_is_actual` | `temp_c` comes from observed, not forecast, temperature | Flag |
+| `ttf_eur_mwh` | TTF gas front-month, last close on or before D−2 | Yes |
+| `eua_eur_t` | EU carbon allowance, last EEX auction on or before D−2 | Yes |
+| `coal_eur_t` | API2 coal front-month in €/t, last close on or before D−2 | Yes (secondary) |
+| `ttf_age_d`, `eua_age_d`, `coal_age_d` | Days between the price date and the delivery day (2 = normal) | Flag |
 | `fc_interpolated` | A forecast value in this hour was interpolated | Flag |
 | `exclude_from_training` | Long data gap or missing price | Flag |
 
@@ -65,9 +72,17 @@ Raw downloads are cached in `data/raw/` (per year for ENTSO-E, per city for weat
 - **Heating degree hours** rather than raw temperature, because heating demand only rises below a threshold (15.5 °C).
 - **Expected value is modest.** The ENTSO-E load forecast already includes the effect of temperature on demand, and most German heating runs on gas rather than electricity. Whether temperature adds anything beyond the load forecast will be tested with and without it.
 
+**Fuel and carbon prices**
+- Gas and carbon prices set the cost of the gas and coal plants that usually set the German price, so they move the whole price level. In 2022 they explain most of the price spike.
+- **Gas:** TTF front-month from yfinance. It stands in for German gas costs (THE hub); the two are usually close but diverged in 2022.
+- **Carbon:** official EEX auction results in €/t. ENTSO-E has no carbon prices and yfinance has no clean €/t EUA series. The closest, an exchange-traded product, drifts away from the EUA price over time.
+- **Coal:** API2 Rotterdam front-month from yfinance, converted to €/t. It is kept as a secondary feature because the free series has artefacts: the front month settles against a monthly average, so it goes flat late in the month and jumps at the roll.
+- **One timing rule for all three:** delivery day D gets the last value dated on or before D−2, i.e. the newest value published before noon on D-1. Futures settle in the evening, so the D-1 close is not yet known. The D-1 EUA auction result (about 11:00) is technically known but deliberately not used, to keep one simple, safe rule. Age columns show how stale each value is, e.g. EUA during the six-week auction break around the start of 2021.
+- **Planned:** combine them into gas- and coal-plant marginal costs (fuel plus carbon cost per MWh of power). These usually explain prices better than the raw prices, especially in the linear baseline.
+
 ## Next steps
 
-- TTF gas and EUA carbon prices, lagged to the last settlement before noon D-1
+- Gas- and coal-plant marginal cost features
 - Calendar and public-holiday / bridge-day features
 - Price lags (same hour D-1, D-2, D-3, D-7; D-1 daily mean, min, max)
 - Time-based train/validation/test split, then baseline vs LightGBM vs LSTM
