@@ -45,7 +45,9 @@ Raw downloads are cached in `data/raw/` (per year for ENTSO-E and EEX, per city 
 | `ttf_eur_mwh` | TTF gas front-month, last close on or before D−2 | Yes |
 | `eua_eur_t` | EU carbon allowance, last EEX auction on or before D−2 | Yes |
 | `coal_eur_t` | API2 coal front-month in €/t, last close on or before D−2 | Yes (secondary) |
-| `ttf_age_d`, `eua_age_d`, `coal_age_d` | Days between the price date and the delivery day (2 = normal) | Flag |
+| `gas_mc_eur_mwh`, `coal_mc_eur_mwh` | Marginal cost of power from a typical gas / coal plant (fuel + carbon) | Yes |
+| `gas_minus_coal_mc` | Gas minus coal marginal cost; positive when coal is cheaper | Yes |
+| `ttf_age_d`, `eua_age_d`, `coal_age_d` | Days between the price date and the delivery day (2 = normal) | No, checks only |
 | `fc_interpolated` | A forecast value in this hour was interpolated | Flag |
 | `exclude_from_training` | Long data gap or missing price | Flag |
 
@@ -61,7 +63,8 @@ Raw downloads are cached in `data/raw/` (per year for ENTSO-E and EEX, per city 
 
 **Gaps**
 - Short gaps (≤3 h) in the forecasts are interpolated over time and flagged with `fc_interpolated`.
-- Longer gaps are left missing and flagged with `exclude_from_training`. The main one is a full day of load forecasts missing from ENTSO-E in February 2022, confirmed by re-downloading. The rows are kept so later price lags stay on a complete hourly grid. 53 hours are excluded in total.
+- Longer gaps are left missing and flagged with `exclude_from_training`. These are two full days of load forecasts missing from ENTSO-E (22 February and 24 March 2022), confirmed by re-downloading. The rows are kept so later price lags stay on a complete hourly grid. 48 hours are excluded in total.
+- Year-long price requests drop one hour per year (31 December 00:00 Berlin time, 2020–2024). The price script re-queries those hours with short requests, so no prices are missing.
 
 **Temperature**
 - Temperature is used only as a proxy for heating demand. Wind and solar already come from the ENTSO-E forecasts, so no other weather variables are needed.
@@ -78,11 +81,14 @@ Raw downloads are cached in `data/raw/` (per year for ENTSO-E and EEX, per city 
 - **Carbon:** official EEX auction results in €/t. ENTSO-E has no carbon prices and yfinance has no clean €/t EUA series. The closest, an exchange-traded product, drifts away from the EUA price over time.
 - **Coal:** API2 Rotterdam front-month from yfinance, converted to €/t. It is kept as a secondary feature because the free series has artefacts: the front month settles against a monthly average, so it goes flat late in the month and jumps at the roll.
 - **One timing rule for all three:** delivery day D gets the last value dated on or before D−2, i.e. the newest value published before noon on D-1. Futures settle in the evening, so the D-1 close is not yet known. The D-1 EUA auction result (about 11:00) is technically known but deliberately not used, to keep one simple, safe rule. Age columns show how stale each value is, e.g. EUA during the six-week auction break around the start of 2021.
-- **Planned:** combine them into gas- and coal-plant marginal costs (fuel plus carbon cost per MWh of power). These usually explain prices better than the raw prices, especially in the linear baseline.
+- **Marginal costs:** the script combines them into the cost of producing 1 MWh of power in a typical gas plant (50% efficient) and coal plant (40%), fuel plus carbon. These usually explain prices better than the raw prices, especially in the linear baseline, and their difference shows when coal was cheaper than gas (almost every day in 2021–2022). Formulas and constants are in [notes/features.md](notes/features.md).
+
+## Validation
+
+[src/validate_base.py](src/validate_base.py) is read-only and can run after any pipeline step. It checks the hourly index and daylight-saving days, missing values, plausible ranges, that no fuel price is newer than D−2, and that every column has exactly one role (target, feature, optional feature, flag or diagnostic) as defined in [src/columns.py](src/columns.py).
 
 ## Next steps
 
-- Gas- and coal-plant marginal cost features
 - Calendar and public-holiday / bridge-day features
 - Price lags (same hour D-1, D-2, D-3, D-7; D-1 daily mean, min, max)
 - Time-based train/validation/test split, then baseline vs LightGBM vs LSTM
