@@ -94,7 +94,7 @@ df = df[(df.index >= start) & (df.index < end)].copy()
 
 # %%
 # Handle gaps: interpolate short ones, flag long ones
-# 22 February 2022 is missing from ENTSO-E (confirmed by re-download)
+# Load forecasts for 22 February and 24 March 2022 are missing from ENTSO-E (confirmed by re-download)
 fc_cols = ["load_fc_mw", "solar_fc_mw", "wind_on_fc_mw", "wind_off_fc_mw"]
 
 def long_gap_mask(s, max_len=3):

@@ -116,6 +116,25 @@ for col, src in [("ttf_eur_mwh", "ttf"), ("eua_eur_t", "eua"), ("coal_eur_t", "c
 fuels.index.name = "delivery_date"
 
 # %%
+# Marginal cost of power from gas and coal plants (fuel + carbon), €/MWh of electricity
+# Gas plant (combined cycle)
+GAS_EFF = 0.50                   # net (lower heating value) efficiency
+GAS_GCV_PER_NCV = 1.108          # TTF is priced per MWh gross calorific value
+CO2_PER_MWH_GAS = 0.202          # t CO2 per MWh of gas burned (net)
+
+# Coal plant (hard coal)
+COAL_EFF = 0.40
+COAL_MWH_PER_T = 6.98            # API2 quality: 6,000 kcal/kg ≈ 25.1 GJ/t (net)
+CO2_PER_MWH_COAL = 0.34          # t CO2 per MWh of coal burned
+
+fuels["gas_mc_eur_mwh"] = (fuels["ttf_eur_mwh"] * GAS_GCV_PER_NCV
+                           + fuels["eua_eur_t"] * CO2_PER_MWH_GAS) / GAS_EFF
+fuels["coal_mc_eur_mwh"] = (fuels["coal_eur_t"] / COAL_MWH_PER_T
+                            + fuels["eua_eur_t"] * CO2_PER_MWH_COAL) / COAL_EFF
+# Positive: coal plants are cheaper than gas plants
+fuels["gas_minus_coal_mc"] = fuels["gas_mc_eur_mwh"] - fuels["coal_mc_eur_mwh"]
+
+# %%
 # Checks
 print("Missing delivery days:")
 print(fuels.isna().sum())
@@ -127,7 +146,7 @@ for c in age_cols:
     print(f"  {c}: max {fuels[c].max()} on {fuels[c].idxmax().date()}, "
           f"share > 4 days {(fuels[c] > 4).mean() * 100:.1f}%")
 
-price_cols = ["ttf_eur_mwh", "eua_eur_t", "coal_eur_t"]
+price_cols = ["ttf_eur_mwh", "eua_eur_t", "coal_eur_t", "gas_mc_eur_mwh", "coal_mc_eur_mwh"]
 print(fuels[price_cols].groupby(fuels.index.year).agg(["mean", "max"]).round(1))
 
 # Largest day-to-day moves in the raw series; coal's 2021-11-01 drop is a contract roll

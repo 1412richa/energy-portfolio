@@ -73,6 +73,47 @@ print(prices.index.to_series().diff().value_counts().head())
 hourly = prices.resample("h").mean()
 
 # %%
+# Patch hours dropped by the year-long requests (31 Dec 00:00 local in 2020–2024);
+# a short request for the same day returns them
+def fetch_window(start: pd.Timestamp, end: pd.Timestamp, retries: int = 3) -> pd.Series:
+    for attempt in range(1, retries + 1):
+        try:
+            s = client.query_day_ahead_prices("DE_LU", start=start, end=end)
+            if isinstance(s, pd.DataFrame):
+                s = s.iloc[:, 0]
+            return s.tz_convert("UTC").resample("h").mean()
+        except Exception as e:
+            print(f"{start.date()} attempt {attempt} failed: {e}")
+            time.sleep(10)
+    raise RuntimeError(f"Could not fetch {start.date()} to {end.date()}")
+
+
+def fetch_patches(missing: pd.DatetimeIndex) -> pd.Series:
+    out = RAW / "da_prices_patches.csv"
+    if out.exists():
+        cached = pd.read_csv(out, index_col=0, parse_dates=True).iloc[:, 0]
+        cached.index = pd.to_datetime(cached.index, utc=True)
+        if missing.isin(cached.index).all():
+            return cached
+
+    days = missing.tz_convert("Europe/Berlin").normalize().unique()
+    parts = [fetch_window(day - pd.Timedelta(days=1), day + pd.Timedelta(days=1))
+             for day in days]
+    patches = pd.concat(parts).rename("price_eur_mwh")
+    patches = patches[patches.index.isin(missing)]
+    patches.to_frame().to_csv(out)
+    return patches
+
+# Only hours inside the German calendar period; the last UTC hour belongs to 2026
+start = pd.Timestamp("2020-01-01", tz="Europe/Berlin")
+end = pd.Timestamp("2026-01-01", tz="Europe/Berlin")
+missing = hourly.index[hourly.isna() & (hourly.index >= start) & (hourly.index < end)]
+if len(missing):
+    patches = fetch_patches(missing)
+    hourly = hourly.fillna(patches)
+    print(f"Patched {hourly.loc[missing].notna().sum()} of {len(missing)} missing hours")
+
+# %%
 # Quality checks
 # 1. Missing hours (resample turns gaps into NaN)
 print("Missing hours:", hourly.isna().sum())
