@@ -28,8 +28,11 @@ Hourly resolution for consistency across 2020–2025 data; 15-min extension is f
 - [ ] Train/test split by time, never shuffled
 
 ## Data Quality
+### Prices
+- Year-long ENTSO-E requests drop one hour per year: 31 Dec 00:00 Berlin time in 2020–2024. A short request around the same day returns it (e.g. 2023-12-31 00:00 = €36.54), so `fetch_prices.py` re-queries those hours and patches them (cached in `data/raw/prices/da_prices_patches.csv`). No missing prices remain.
+
 ### Load Forecast
-- Load forecast missing for one full day in Feb 23 2022 (right before the Russia-Ukrain War); rows kept for lag computation but excluded from training. Short gaps (≤3 h) interpolated and flagged.
+- Load forecast missing for two full days: 22 Feb 2022 (right before the Russia-Ukraine war) and 24 Mar 2022. Both confirmed missing at ENTSO-E by re-download (actual load exists, forecast does not). Rows kept for lag computation but excluded from training (48 h). Short gaps (≤3 h) interpolated and flagged.
 
 ### Temperature
 - **Why not the Historical Forecast API:** it is stitched together from the first hours of each model run, so it is close to observed weather, not a D-1 forecast.
@@ -48,4 +51,10 @@ Hourly resolution for consistency across 2020–2025 data; 15-min extension is f
 - **Coal roll artefact:** `MTF=F` is a monthly contract that settles against the month's average index, so the front month goes nearly flat late in the month and then jumps at the roll. Clearest case: ~$231-235 for 8 days, then -40% on 2021-11-01, while real API2 prices fell gradually through late October. Also 89 unchanged closes and almost no volume data. Treat coal as a secondary feature.
 - **TTF largest moves are real events:** +51% on 2022-02-24 (invasion of Ukraine), +36% on 2022-03-02.
 - **Yearly means (€):** TTF 9.6 (2020) -> 132.1 (2022, max 339.2) -> 36.4 (2025); EUA 24.6 -> 83.4 (2023) -> 73.5; coal 44.0 -> 276.0 (2022) -> 88.6.
-- **Planned derived features:** gas and coal plant short-run marginal cost (SRMC): gas ≈ (TTF + 0.20·EUA)/0.50; coal ≈ (coal/8.14 + 0.34·EUA)/0.38 (€/MWh). Built in feature engineering, not in the fetch script.
+- **Marginal cost features (built in `fetch_fuels.py`):** short-run marginal cost of power from a typical plant, €/MWh of electricity, fuel plus carbon:
+  - gas: `gas_mc_eur_mwh` = (TTF × 1.108 + EUA × 0.202) / 0.50. TTF is priced per MWh gross calorific value, efficiency and CO2 factor are on net calorific value, hence ×1.108.
+  - coal: `coal_mc_eur_mwh` = (coal / 6.98 + EUA × 0.34) / 0.40. 6.98 MWh/t is the API2 standard grade (6,000 kcal/kg ≈ 25.1 GJ/t).
+  - `gas_minus_coal_mc`: positive when coal plants are cheaper than gas plants.
+- **Yearly means (€/MWh), gas / coal / gap:** 2020 31 / 37 / −6; 2021 125 / 81 / 44; 2022 325 / 167 / 158; 2023 126 / 113 / 13; 2024 103 / 92 / 11; 2025 110 / 94 / 16. Coal is cheaper on 25% of days in 2020 and on 76–100% of days from 2021.
+- **Caveat:** fixed efficiencies give one stylised plant per fuel. Gas cost is above the average price in 2023–2025 because the average includes many hours set by renewables, and the newest gas plants are more efficient than 50%. Correlation with the hourly price: gas 0.80, coal 0.69.
+- **Collinearity:** `gas_minus_coal_mc` is an exact difference of two other features; fine for LightGBM, but in the linear baseline the regularisation will split weight between them somewhat arbitrarily.
