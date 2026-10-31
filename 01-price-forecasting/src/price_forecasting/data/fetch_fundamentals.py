@@ -11,7 +11,7 @@ from entsoe.exceptions import NoMatchingDataError
 import matplotlib.pyplot as plt
 import numpy as np
 
-from project_paths import find_project_root
+from price_forecasting.paths import find_project_root
 
 load_dotenv()
 client = EntsoePandasClient(api_key=os.getenv("ENTSOE_API_KEY"))
@@ -80,17 +80,12 @@ assert not missing, f"Columns not found after rename: {missing}"
 print(load.head(), ws_fc.head(), sep="\n")
 
 # %%
-# Merge with prices
-prices = pd.read_csv(PROCESSED / "da_prices_hourly_utc.csv",
-                     index_col=0, parse_dates=True)
-prices.index = pd.to_datetime(prices.index, utc=True)
-
-df = prices.join(load, how="left").join(ws_fc, how="left")
-
-# Trim to the German calendar period 2020–2025
+# Combine on the hourly grid of the German calendar period 2020–2025
 start = pd.Timestamp("2020-01-01", tz="Europe/Berlin")
 end   = pd.Timestamp("2026-01-01", tz="Europe/Berlin")
-df = df[(df.index >= start) & (df.index < end)].copy()
+hours = pd.date_range(start, end, freq="h", inclusive="left").tz_convert("UTC")
+
+df = load.reindex(hours).join(ws_fc.reindex(hours))
 
 # %%
 # Handle gaps: interpolate short ones, flag long ones
@@ -110,7 +105,7 @@ df[fc_cols] = df[fc_cols].interpolate(method="time", limit=3, limit_area="inside
 df[fc_cols] = df[fc_cols].mask(long_gaps)
 
 df["fc_interpolated"] = short_gaps.any(axis=1)
-df["exclude_from_training"] = long_gaps.any(axis=1) | df["price_eur_mwh"].isna()
+df["exclude_from_training"] = long_gaps.any(axis=1)  # build_base.py adds missing prices
 
 # Residual load, calculated once on clean data
 df["residual_load_fc_mw"] = (df["load_fc_mw"] - df["solar_fc_mw"]
@@ -120,7 +115,7 @@ df["residual_load_fc_mw"] = (df["load_fc_mw"] - df["solar_fc_mw"]
 # Checks
 expected = pd.date_range(df.index.min(), df.index.max(), freq="h", tz="UTC")
 print("Complete hourly index:", df.index.equals(expected))
-print(df[fc_cols + ["residual_load_fc_mw", "price_eur_mwh"]].isna().sum())
+print(df[fc_cols + ["residual_load_fc_mw"]].isna().sum())
 print("Interpolated rows:", df["fc_interpolated"].sum())
 print("Excluded from training:", df["exclude_from_training"].sum())
 
@@ -140,8 +135,13 @@ print((err.groupby(year_local).mean() * 100).round(2))
 
 # %%
 # Plot: residual load forecast vs price
+prices = pd.read_csv(PROCESSED / "da_prices_hourly_utc.csv",
+                     index_col=0, parse_dates=True)
+prices.index = pd.to_datetime(prices.index, utc=True)
+plot_df = df.join(prices)
+
 fig, ax = plt.subplots(figsize=(9, 6))
-for year, g in df.groupby(year_local):
+for year, g in plot_df.groupby(year_local):
     ax.scatter(g["residual_load_fc_mw"] / 1000, g["price_eur_mwh"],
                s=2, alpha=0.3, label=str(year))
 ax.set_xlabel("Residual load forecast (GW)")
@@ -152,5 +152,5 @@ plt.show()
 # %%
 # Save
 df.index.name = "timestamp_utc"
-df.to_csv(PROCESSED / "model_base_hourly_utc.csv")
+df.to_csv(PROCESSED / "fundamentals_hourly_utc.csv")
 print(df.shape, df.index.min(), df.index.max())

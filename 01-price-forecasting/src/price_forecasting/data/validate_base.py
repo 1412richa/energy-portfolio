@@ -2,8 +2,8 @@
 # Read-only checks on the model base; run after any pipeline step
 import pandas as pd
 
-from columns import TARGET, FEATURES, OPTIONAL_FEATURES, FLAGS, DIAGNOSTICS
-from project_paths import find_project_root
+from price_forecasting.columns import TARGET, FEATURES, OPTIONAL_FEATURES, FLAGS, DIAGNOSTICS
+from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
 PROCESSED = PROJECT / "data" / "processed"

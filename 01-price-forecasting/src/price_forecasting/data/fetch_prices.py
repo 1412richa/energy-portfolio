@@ -7,7 +7,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from entsoe import EntsoePandasClient
 
-from project_paths import find_project_root
+from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
 RAW = PROJECT / "data" / "raw" / "prices"

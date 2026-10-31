@@ -5,7 +5,7 @@ import time
 import pandas as pd
 import requests
 
-from project_paths import find_project_root
+from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
 RAW = PROJECT / "data" / "raw" / "weather"
@@ -131,18 +131,3 @@ out = df[["temp_c", "hdh", "temp_is_actual"]]
 out.index.name = "timestamp_utc"
 out.to_csv(PROCESSED / "weather_hourly_utc.csv")
 print(out.shape, out.index.min(), out.index.max())
-
-# %%
-# Merge into the model base (prices, load and wind/solar forecasts)
-base = pd.read_csv(PROCESSED / "model_base_hourly_utc.csv",
-                   index_col=0, parse_dates=True)
-base.index = pd.to_datetime(base.index, utc=True)
-print("Same hourly index as base:", base.index.equals(out.index))
-
-# Drop weather columns from an earlier run so the cell can be re-run safely
-merged = base.drop(columns=out.columns, errors="ignore").join(out, how="left")
-print(merged[out.columns].isna().sum())
-
-merged.index.name = "timestamp_utc"
-merged.to_csv(PROCESSED / "model_base_hourly_utc.csv")
-print(merged.shape, merged.index.min(), merged.index.max())

@@ -7,7 +7,7 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-from project_paths import find_project_root
+from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
 RAW = PROJECT / "data" / "raw" / "fuels"
@@ -158,20 +158,3 @@ for name in ["ttf", "eua", "coal_eur"]:
 # Save (already lagged: each row is what was known at noon before that delivery day)
 fuels.to_csv(PROCESSED / "fuels_daily.csv")
 print(fuels.shape, fuels.index.min().date(), fuels.index.max().date())
-
-# %%
-# Merge into the model base by German delivery date
-base = pd.read_csv(PROCESSED / "model_base_hourly_utc.csv",
-                   index_col=0, parse_dates=True)
-base.index = pd.to_datetime(base.index, utc=True)
-
-local_day = base.index.tz_convert("Europe/Berlin").tz_localize(None).normalize()
-hourly = fuels.reindex(local_day).set_axis(base.index)
-
-# Drop fuel columns from an earlier run so the cell can be re-run safely
-merged = base.drop(columns=fuels.columns, errors="ignore").join(hourly)
-print(merged[fuels.columns].isna().sum())
-
-merged.index.name = "timestamp_utc"
-merged.to_csv(PROCESSED / "model_base_hourly_utc.csv")
-print(merged.shape, merged.index.min(), merged.index.max())
