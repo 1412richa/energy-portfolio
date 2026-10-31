@@ -224,3 +224,6 @@ __marimo__/
 # Excel files
 *.xls
 *.xlsx
+
+# Generated EDA figures
+01-price-forecasting/reports/figures/
