@@ -2,7 +2,7 @@
 # Read-only checks on the model base; run after any pipeline step
 import pandas as pd
 
-from price_forecasting.columns import TARGET, FEATURES, OPTIONAL_FEATURES, FLAGS, DIAGNOSTICS
+from price_forecasting.columns import TARGET, BASE_FEATURES, OPTIONAL_FEATURES, FLAGS, DIAGNOSTICS
 from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
@@ -61,7 +61,7 @@ print(df.groupby(year_local)[["price_eur_mwh", "gas_mc_eur_mwh",
                               "coal_mc_eur_mwh", "gas_minus_coal_mc"]].mean().round(0))
 
 # %%
-roles = [TARGET, *FEATURES, *OPTIONAL_FEATURES, *FLAGS, *DIAGNOSTICS]
+roles = [TARGET, *BASE_FEATURES, *OPTIONAL_FEATURES, *FLAGS, *DIAGNOSTICS]
 dupes = {c for c in roles if roles.count(c) > 1}
 assert not dupes, f"Columns with more than one role: {dupes}"
 

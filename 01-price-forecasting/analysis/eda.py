@@ -3,11 +3,8 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from price_forecasting.columns import FEATURES, OPTIONAL_FEATURES
+from price_forecasting.columns import BASE_FEATURES, OPTIONAL_FEATURES, HOLDOUT_YEAR
 from price_forecasting.paths import find_project_root
-
-# 2025 is the test year: decisions made from this EDA must not see it
-HOLDOUT_YEAR = 2025
 
 PROJECT = find_project_root()
 FIG = PROJECT / "reports" / "figures"
@@ -18,7 +15,7 @@ df = pd.read_csv(PROJECT / "data" / "processed" / "model_base_hourly_utc.csv",
 df.index = pd.to_datetime(df.index, utc=True)
 
 loc = df.index.tz_convert("Europe/Berlin")
-df = df[loc.year < HOLDOUT_YEAR].copy()
+df = df[loc.year < HOLDOUT_YEAR].copy()    # decisions made from this EDA must not see the test year
 loc = df.index.tz_convert("Europe/Berlin")
 df["year"], df["month"], df["hour"], df["dow"] = loc.year, loc.month, loc.hour, loc.dayofweek
 df["is_weekend"] = df["dow"] >= 5
@@ -87,7 +84,7 @@ print(df[df["year"] >= 2023].groupby("is_weekend")["neg"].mean().round(3))
 
 # %%
 # Correlation of features with price
-cols = FEATURES + OPTIONAL_FEATURES
+cols = BASE_FEATURES + OPTIONAL_FEATURES
 by_year = df.groupby("year").apply(
     lambda g: g[cols].corrwith(g[P], method="spearman"))
 print(by_year.T.round(2))
