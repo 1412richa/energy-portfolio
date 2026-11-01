@@ -22,6 +22,9 @@ FETCH_START, FETCH_END = "2019-11-01", "2026-01-01"
 # so at noon D-1 the latest usable value is dated D-2 or earlier
 LAG_DAYS = 2
 
+# About 250 trading days a year for 6 years; yfinance can return far less for delisted tickers
+MIN_TRADING_DAYS = 1400
+
 TICKERS = {
     "ttf": "TTF=F",          # Dutch TTF gas front-month, €/MWh
     "coal": "MTF=F",         # Rotterdam coal (API2) front-month, $/t
@@ -44,15 +47,16 @@ def fetch_ticker(name, ticker, retries=3):
     for attempt in range(1, retries + 1):
         d = yf.download(ticker, start=FETCH_START, end=FETCH_END,
                         progress=False, auto_adjust=False)
-        if len(d):
+        if len(d) >= MIN_TRADING_DAYS:
             s = d["Close"].squeeze().dropna().rename(name)
             s.index.name = "date"
             s.to_csv(out)
             print(f"{name}: {len(s)} trading days")
             return s
-        print(f"{name} attempt {attempt}: no data")
+        print(f"{name} attempt {attempt}: {len(d)} rows, expected at least {MIN_TRADING_DAYS}")
         time.sleep(10)
-    raise RuntimeError(f"Could not fetch {name} ({ticker})")
+    raise RuntimeError(f"Could not fetch the full history of {name} ({ticker}); nothing saved. "
+                       f"Restore {out.name} from a backup.")
 
 
 def fetch_eua_year(year, retries=3):
