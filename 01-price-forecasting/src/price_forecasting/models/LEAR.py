@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.linear_model import LassoLarsIC
 from sklearn.preprocessing import StandardScaler
 from joblib import Parallel, delayed
-from price_forecasting.models.evaluation import split, evaluate, P
+from price_forecasting.models.evaluation import split, evaluate, negative_price_table, P
 from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
@@ -117,10 +117,4 @@ all_res.to_csv(RESULTS / "validation_results.csv", index=False)
 
 # %%
 # Compare actual negative prices with LEAR forecasts
-neg_hours = val[P] < 0
-bins = [-np.inf, -50, -20, -5, -1, 0]
-print(f"Actual negative prices, 2024 ({neg_hours.sum()} hours):")
-print(pd.cut(val.loc[neg_hours, P], bins).value_counts().sort_index())
-fc = y_pred[neg_hours]
-print(f"\nLEAR forecasts for those same hours ({fc.notna().sum()} forecast, {fc.isna().sum()} missing):")
-print(pd.cut(fc, bins + [np.inf]).value_counts().sort_index())
+print(negative_price_table(val, y_pred, "lear_730d"))

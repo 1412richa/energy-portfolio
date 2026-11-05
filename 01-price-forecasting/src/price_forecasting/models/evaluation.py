@@ -50,3 +50,17 @@ def evaluate(df, y_pred, name):
         r = metrics(y[m], y_pred[m], naive[m])
         rows.append({"model": name, "subset": sub, **r})
     return pd.DataFrame(rows)
+
+def negative_price_table(df, y_pred, name):
+    """For hours with an actual negative price: how many fall in each price band,
+    and where the forecasts for those same hours land (€/MWh)."""
+    neg = df[P] < 0
+    bins = [-np.inf, -50, -20, -5, -1, 0, np.inf]
+    fc = y_pred[neg]
+    table = pd.DataFrame({
+        "actual": pd.cut(df.loc[neg, P], bins).value_counts(sort=False),
+        name: pd.cut(fc, bins).value_counts(sort=False),
+    })
+    table.index = table.index.astype(str)
+    table.loc["missing"] = [0, int(fc.isna().sum())]
+    return table
