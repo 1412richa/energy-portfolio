@@ -42,7 +42,7 @@ def evaluate(df, y_pred, name):
     subsets = {
         "all": np.ones(len(df), bool),
         "negative_price": (y < 0).to_numpy(),
-        "low_resid_load": df["low_resid_flag"].to_numpy(),
+        "low_resid_load": df["low_resid_flag"].astype(bool).to_numpy(),   # models may store it as 0/1
         "evening_peak_17_20": np.isin(hour, [17, 18, 19, 20]),
     }
     rows = []
