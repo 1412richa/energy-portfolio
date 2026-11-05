@@ -1,0 +1,1 @@
+LEAR (730-day window, daily recalibration): MAE 14.1 €/MWh, rMAE 0.52 on 2024. Negative-price hours: bias reversed from +28 (naive) to −18; LEAR over-predicts how far prices fall below zero, probably because 2024 negative prices cluster near zero.
