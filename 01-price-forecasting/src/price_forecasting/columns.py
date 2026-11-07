@@ -1,7 +1,8 @@
 # Column roles, shared by the validation, feature and model scripts
 TARGET = "price_eur_mwh"
 
-HOLDOUT_YEAR = 2025                             # test year; 2024 is for validation
+HOLDOUT_YEAR = 2025                             # test year
+VAL_YEAR = HOLDOUT_YEAR - 1                     # validation year: all modelling choices
 
 BASE_FEATURES = [
     "load_fc_mw", "solar_fc_mw", "wind_on_fc_mw", "wind_off_fc_mw",
