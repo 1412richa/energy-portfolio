@@ -1,16 +1,15 @@
 import numpy as np
 import pandas as pd
 
-from price_forecasting.columns import TARGET as P, HOLDOUT_YEAR
+from price_forecasting.columns import TARGET as P, HOLDOUT_YEAR, VAL_YEAR
 
 def local_year(index):
     return index.tz_convert("Europe/Berlin").year
 
 def split(df):
-    """Train up to two years before the test year, validate on the year before it,
-    test on HOLDOUT_YEAR (German calendar years)."""
+    """Train before VAL_YEAR, validate on VAL_YEAR, test on HOLDOUT_YEAR (German calendar years)."""
     y = local_year(df.index)
-    return df[y < HOLDOUT_YEAR - 1], df[y == HOLDOUT_YEAR - 1], df[y == HOLDOUT_YEAR]
+    return df[y < VAL_YEAR], df[y == VAL_YEAR], df[y == HOLDOUT_YEAR]
 
 def lago_naive(df):
     """Naive benchmark from Lago et al. (2021): same hour one week earlier
@@ -64,3 +63,20 @@ def negative_price_table(df, y_pred, name):
     table.index = table.index.astype(str)
     table.loc["missing"] = [0, int(fc.isna().sum())]
     return table
+
+def sign_skill(y_true, y_pred):
+    """How well a model calls negative prices; NaN when there is nothing to score."""
+    actual, forecast = y_true < 0, y_pred < 0
+    hits = (actual & forecast).sum()
+    return {
+        "neg_recall": hits / actual.sum() if actual.any() else np.nan,          # share of negative hours caught
+        "neg_precision": hits / forecast.sum() if forecast.any() else np.nan,   # share of negative forecasts that were right
+    }
+
+def summarise(df, y_pred, name):
+    """One row per model: headline metrics plus negative-price sign skill."""
+    r = evaluate(df, y_pred, name).set_index("subset")
+    return {"model": name,
+            "MAE": r.loc["all", "MAE"], "RMSE": r.loc["all", "RMSE"],
+            "rMAE": r.loc["all", "rMAE"], "rMAE_neg": r.loc["negative_price", "rMAE"],
+            **sign_skill(df[P], y_pred)}
