@@ -1,11 +1,13 @@
 # %%
-# Hyperparameter tuning for LEAR model
+# Housekeeping
+import time
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LassoLarsIC
 from sklearn.preprocessing import StandardScaler
 from joblib import Parallel, delayed
-from price_forecasting.models.evaluation import split, evaluate, negative_price_table, P
+from price_forecasting.models.evaluation import split, evaluate, negative_price_table, summarise, P
+from price_forecasting.columns import VAL_YEAR
 from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
@@ -86,9 +88,8 @@ def forecast_day(D, window_days=730, min_days=300):
     return pd.Series(preds, name=D)
 
 # %%
-# Test LEAR model on January 2024
-import time
-test_days = pd.date_range("2024-01-01", "2024-01-31", freq="D")
+# Test LEAR model on January of the validation year
+test_days = pd.date_range(f"{VAL_YEAR}-01-01", f"{VAL_YEAR}-01-31", freq="D")
 t0 = time.time()
 pred_jan = pd.DataFrame([forecast_day(D) for D in test_days])
 print(f"{time.time() - t0:.0f} s for {len(test_days)} days")
@@ -96,7 +97,7 @@ print(pred_jan.iloc[:3, :6].round(1))
 print(P_target.loc[test_days[:3], :5].round(1))
 
 # %%
-val_days = pd.date_range("2024-01-01", "2024-12-31", freq="D")
+val_days = pd.date_range(f"{VAL_YEAR}-01-01", f"{VAL_YEAR}-12-31", freq="D")
 t0 = time.time()
 # Days are independent, so forecast them in parallel on all cores
 pred_wide = pd.DataFrame(Parallel(n_jobs=-1, verbose=5)(delayed(forecast_day)(D) for D in val_days))
@@ -118,3 +119,24 @@ all_res.to_csv(RESULTS / "validation_results.csv", index=False)
 # %%
 # Compare actual negative prices with LEAR forecasts
 print(negative_price_table(val, y_pred, "lear_730d"))
+
+# %%
+#LEAR window comparison
+# The 730-day window was already run above
+lear_preds = {730: y_pred}
+for w in [365, 1095]:
+    t0 = time.time()
+    pw = pd.DataFrame(Parallel(n_jobs=-1)(
+        delayed(forecast_day)(D, window_days=w) for D in val_days))
+    pw.to_csv(RESULTS / f"lear_{w}d_val_predictions_wide.csv")
+    lear_preds[w] = pd.Series(pw.stack().reindex(key).to_numpy(), index=val.index)
+    print(f"LEAR {w}d: {time.time() - t0:.0f} s")
+
+lear_preds["avg"] = pd.concat([lear_preds[w] for w in [365, 730, 1095]], axis=1).mean(axis=1)
+
+# %%
+# Summarise LEAR window comparison
+summary = pd.DataFrame([summarise(val, lear_preds[w], f"lear_{w}d" if w != "avg" else "lear_avg")
+                        for w in [365, 730, 1095, "avg"]]).set_index("model")
+print(summary.round(3).sort_values("MAE"))
+summary.to_csv(RESULTS / "lear_windows_val.csv")
