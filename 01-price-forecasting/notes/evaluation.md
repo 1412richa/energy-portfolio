@@ -23,4 +23,12 @@ Lowest overall MAE. If two configurations are within 2%, choose the one with bet
 - The negative-price subset is selected on the actual price, so errors there skew positive for almost any model (Lago naive: +27.9 bias vs -0.3 overall). Use it to describe errors, not to compare bias between models. The low-residual-load subset is known in advance and covers 82.7% of 2024's negative hours.
 - Selecting among several configurations on 2024 makes the winner's 2024 score slightly optimistic; the 2025 test gives the unbiased estimate.
 - From 1 October 2025 the day-ahead market trades 15-minute products. Forecasts are scored against their hourly average, and these months (25% of test hours) are reported separately.
-- 5.3% of 2024 hours use observed rather than forecast temperature (`temp_is_actual`), which can flatter models that use temperature.
+- 5.3% of 2024 hours use observed rather than forecast temperature (`temp_is_actual`), which could flatter models that use temperature. Checked: the temperature gain is the same on fallback and forecast-temperature hours (-2.8% vs -2.7% MAE), and neither chosen model uses temperature.
+
+## Test protocol (declared before running 2025)
+Models reported on 2025: lgbm_weekly, lear_avg, and their simple average
+(average added after 2024 error analysis; labelled as such).
+Headline result: lgbm_weekly, chosen on 2024. The average is reported
+alongside, whatever its result.
+All subsets and sign skill reported for all three, plus naive baselines.
+No changes to any configuration after viewing 2025 results.
