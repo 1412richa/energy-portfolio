@@ -131,6 +131,7 @@ experiments = {
     "lgbm_with_temp":   dict(x_cols=with_temp),
     "lgbm_leaves31":    dict(params=PARAMS | {"num_leaves": 31}),
     "lgbm_leaves127":   dict(params=PARAMS | {"num_leaves": 127}),
+    "lgbm_weekly_temp": dict(freq="W-MON", x_cols=with_temp),   # post-hoc, declared after results
 }
 
 summary, preds_store = [], {}
