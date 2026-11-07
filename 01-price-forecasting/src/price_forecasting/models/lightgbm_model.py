@@ -143,3 +143,5 @@ for name, kwargs in experiments.items():
 summary = pd.DataFrame(summary).set_index("model")
 print(summary.round(3).sort_values("MAE"))
 summary.to_csv(RESULTS / "lgbm_experiments_val.csv")
+# One column per experiment, hourly UTC index, so they can be compared hour by hour later
+pd.DataFrame(preds_store).to_csv(RESULTS / "lgbm_experiments_val_predictions.csv")

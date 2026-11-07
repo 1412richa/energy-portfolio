@@ -227,3 +227,6 @@ __marimo__/
 
 # Generated EDA figures
 01-price-forecasting/reports/figures/
+
+# Personal Claude Code settings
+.claude/settings.local.json

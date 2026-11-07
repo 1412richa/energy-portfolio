@@ -24,4 +24,9 @@ baselines = {
 results = pd.concat([evaluate(val, pred, name) for name, pred in baselines.items()])
 print(results.round(2).to_string(index=False))
 
-results.to_csv(RESULTS / "validation_results.csv", index=False)
+# Replace only the baseline rows, keeping results other models have added
+out = RESULTS / "validation_results.csv"
+if out.exists():
+    old = pd.read_csv(out)
+    results = pd.concat([old[~old["model"].isin(baselines)], results])
+results.to_csv(out, index=False)
