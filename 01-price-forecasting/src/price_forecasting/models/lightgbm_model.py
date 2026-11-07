@@ -3,8 +3,8 @@ import time
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
-from price_forecasting.models.evaluation import split, evaluate, negative_price_table, P
-from price_forecasting.columns import ALL_FEATURES
+from price_forecasting.models.evaluation import split, evaluate, negative_price_table, summarise, P
+from price_forecasting.columns import ALL_FEATURES, OPTIONAL_FEATURES, INTERACTION_FEATURES, VAL_YEAR
 from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
@@ -48,7 +48,7 @@ def train_window(month_start, window_days=730):
             & ~df["exclude_from_training"].astype(bool) & df[P].notna())
     return df[mask]
 
-months = pd.date_range("2024-01-01", "2024-12-01", freq="MS")
+months = pd.date_range(f"{VAL_YEAR}-01-01", f"{VAL_YEAR}-12-01", freq="MS")
 preds, models = [], {}
 t0 = time.time()
 for m in months:
@@ -88,3 +88,58 @@ y_pred.to_frame("lgbm").to_csv(RESULTS / "lgbm_730d_monthly_val_predictions.csv"
 last = models[months[-1]]
 imp = pd.Series(last.booster_.feature_importance("gain"), index=X_COLS)
 print((imp / imp.sum() * 100).sort_values(ascending=False).head(15).round(1))
+
+# %%
+# reuseable functions for rolling-window training and evaluation
+_, val, _ = split(df)
+
+def run_lgbm(params=PARAMS, x_cols=X_COLS, window_days=730, freq="MS", target="raw"):
+    # Always start on 1 January, even when a weekly freq would first land later in the week
+    first = pd.Timestamp(f"{VAL_YEAR}-01-01")
+    starts = pd.date_range(first, f"{VAL_YEAR}-12-31", freq=freq).union([first])
+    bounds = list(starts) + [pd.Timestamp(f"{VAL_YEAR + 1}-01-01")]
+    cats = [c for c in CAT_COLS if c in x_cols]
+    preds = []
+    for s, e in zip(bounds[:-1], bounds[1:]):
+        tr = train_window(s, window_days)
+        te = df[(local_date >= s) & (local_date < e)]
+        y = tr[P]
+        if target == "asinh":
+            med = y.median()
+            mad = (y - med).abs().median()
+            y = np.arcsinh((y - med) / mad)
+        model = lgb.LGBMRegressor(**params).fit(tr[x_cols], y, categorical_feature=cats)
+        p = model.predict(te[x_cols])
+        if target == "asinh":
+            p = np.sinh(p) * mad + med
+        preds.append(pd.Series(p, index=te.index))
+    return pd.concat(preds).reindex(val.index)
+
+
+# %%
+# experiment with different model configurations
+no_eda = [c for c in X_COLS if c not in INTERACTION_FEATURES]
+with_temp = X_COLS + OPTIONAL_FEATURES
+
+experiments = {
+    "lgbm_base":        dict(),
+    "lgbm_win365":      dict(window_days=365),
+    "lgbm_win1095":     dict(window_days=1095),
+    "lgbm_weekly":      dict(freq="W-MON"),
+    "lgbm_asinh_l2":    dict(target="asinh", params=PARAMS | {"objective": "l2"}),
+    "lgbm_no_eda":      dict(x_cols=no_eda),
+    "lgbm_with_temp":   dict(x_cols=with_temp),
+    "lgbm_leaves31":    dict(params=PARAMS | {"num_leaves": 31}),
+    "lgbm_leaves127":   dict(params=PARAMS | {"num_leaves": 127}),
+}
+
+summary, preds_store = [], {}
+for name, kwargs in experiments.items():
+    t0 = time.time()
+    preds_store[name] = run_lgbm(**kwargs)
+    summary.append(summarise(val, preds_store[name], name))
+    print(f"{name}: {time.time() - t0:.0f} s")
+
+summary = pd.DataFrame(summary).set_index("model")
+print(summary.round(3).sort_values("MAE"))
+summary.to_csv(RESULTS / "lgbm_experiments_val.csv")
