@@ -7,8 +7,13 @@ Data scientist with an MSc in Economics (Universität Bonn, IIT Kanpur) and indu
 
 **Projects**
 ---
-**01 - Day-Ahead Price Forecasting** (in progress) 
-Forecasting German day-ahead electricity prices using ENTSO-E data. LEAR/SARIMA baseline vs. LightGBM vs. LSTM, with features built from market fundamentals: residual load, renewable generation forecasts, gas/coal/carbon prices.
+**01 - Day-Ahead Price Forecasting** (complete)
+Forecasting hourly German day-ahead prices from information available at auction
+gate closure. On the held-out 2025 test year, LightGBM reaches an MAE of 11.5 €/MWh,
+58% below a naive benchmark and ahead of a LEAR statistical benchmark (12.3).
+Features built from market fundamentals: residual load forecasts and gas, coal and
+carbon costs.
+Data: ENTSO-E Transparency Platform, EEX, Yahoo Finance, Open-Meteo.
 
 ---
 **02 - Dynamic Tariff Design** (planned)
@@ -18,9 +23,7 @@ Customer segmentation from smart-meter data and time-of-use tariff design by seg
 **03 - Price Sensitivity & Churn** (planned)
 Modelling customer switching behaviour under tariff changes; constraint-based tariff optimisation.
 
-**Data sources**: ENTSO-E Transparency Platform, Open Power System Data, Open-Meteo.
-
-**Stack**: Python (pandas, scikit-learn, LightGBM, statsmodels), Streamlit.
+**Stack**: Python (pandas, scikit-learn, LightGBM); Streamlit planned.
 
 ---
 **Setup**
