@@ -147,6 +147,9 @@ for year, g in plot_df.groupby(year_local):
 ax.set_xlabel("Residual load forecast (GW)")
 ax.set_ylabel("Day-ahead price (€/MWh)")
 ax.legend(markerscale=6)
+FIG = PROJECT / "reports" / "figures"
+FIG.mkdir(parents=True, exist_ok=True)
+plt.savefig(FIG / "residual_load_vs_price.png", dpi=150, bbox_inches="tight")
 plt.show()
 
 # %%
