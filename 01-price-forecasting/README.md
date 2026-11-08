@@ -1,148 +1,127 @@
-# 01 - Day-Ahead Price Forecasting (in progress)
+# Day-Ahead Price Forecasting - Germany (DE-LU)
 
-Forecasting hourly German day-ahead electricity prices (bidding zone DE-LU) from market fundamentals. The plan is to compare a statistical baseline (LEAR/SARIMA) against LightGBM and an LSTM.
+Forecasting hourly German day-ahead electricity prices from information available
+at auction gate closure (noon, D-1), comparing a statistical benchmark (LEAR)
+with gradient boosting (LightGBM).
 
-**Status:** data pipeline in progress. Prices, load and wind/solar forecasts, temperature, and gas, carbon and coal prices are fetched, cleaned and merged into one hourly table for 2020-2025. Price lags, calendar and interaction features are built on top of it. Modelling is next.
+**Result (test year 2025, run once):** LightGBM with weekly retraining reaches an MAE of
+**11.5 €/MWh**, 58% lower than a naive benchmark (rMAE 0.42). Performance was stable
+between validation (2024: rMAE 0.43) and test.
 
-## Forecasting setup
+![Forecasts vs actual prices, June 2025](docs/figures/test_two_weeks.png)
 
-- **Forecast origin:** noon CET on D-1, when the day-ahead auction closes. The model predicts all 24 hours of day D.
-- **Rule:** every input must be knowable at that moment. Realised (actual) values are kept only for checks, never as model inputs.
-- **Period:** German calendar years 2020-2025, i.e. 2020-01-01 00:00 to 2025-12-31 23:00 Berlin time, 52,608 hours.
-- **Test year:** 2025 is held out, and the EDA excludes it, so that design choices don't see the data used for the final score.
-- **Resolution:** hourly. The day-ahead market moved to 15-minute products on 1 October 2025; those are averaged to hourly so that all six years are on the same footing. 15-minute modelling is future work.
+## Results
 
-The full feature specification, with sources, transformations and a leakage checklist, is in [notes/features.md](notes/features.md).
+| Model | MAE 2024 (val) | MAE 2025 (test) | rMAE 2025 | Negative-price recall / precision 2025 |
+|---|---|---|---|---|
+| Naive (Lago et al.) | 27.3 | 27.5 | 1.00 | 0.53 / 0.54 |
+| LEAR (window average) | 12.7 | 12.3 | 0.45 | 0.66 / 0.83 |
+| **LightGBM (weekly)** | **11.7** | **11.5** | **0.42** | **0.76 / 0.77** |
+| Average of both* | 11.1 | 10.9 | 0.40 | 0.70 / 0.85 |
 
-## Pipeline
+MAE in €/MWh. rMAE = MAE relative to the naive benchmark.
+*Added after the 2024 error analysis and declared before the test; reported alongside, not selected.
 
-Run the scripts in this order; the fundamentals plot reads the prices file, and the last step reads all the others.
+## How the price forms, and what the model uses
 
-| Step | Script | Source | Output (`data/processed/`) |
-|---|---|---|---|
-| 1 | [fetch_prices.py](src/price_forecasting/data/fetch_prices.py) | ENTSO-E day-ahead prices | `da_prices_hourly_utc.csv` |
-| 2 | [fetch_fundamentals.py](src/price_forecasting/data/fetch_fundamentals.py) | ENTSO-E load and wind/solar forecasts | `fundamentals_hourly_utc.csv` |
-| 3 | [fetch_weather.py](src/price_forecasting/data/fetch_weather.py) | Open-Meteo Previous Runs and Archive APIs | `weather_hourly_utc.csv` |
-| 4 | [fetch_fuels.py](src/price_forecasting/data/fetch_fuels.py) | yfinance (TTF gas, API2 coal, EUR/USD), EEX (EUA auctions) | `fuels_daily.csv` (per delivery day, already lagged) |
-| 5 | [build_base.py](src/price_forecasting/data/build_base.py) | The four files above | `model_base_hourly_utc.csv` |
-| 6 | [build_features.py](src/price_forecasting/features/build_features.py) | The base table | `model_features_hourly_utc.csv` (the file models read) |
+The day-ahead price is set by the most expensive plant needed to meet demand.
+Two quantities determine it:
 
-Each fetch script writes only its own file, and only `build_base.py` writes the base table. So after re-running any fetch script, just re-run steps 5 and 6.
+- **How far along the merit order the market reaches:** forecast residual load
+  (load minus wind and solar).
+- **How expensive those plants are:** gas and coal plant marginal costs,
+  built from TTF gas, API2 coal and EU carbon prices.
 
-Raw downloads are cached in `data/raw/` (per year for ENTSO-E and EEX, per city for weather, per ticker for yfinance), so a re-run only calls the APIs for files that are missing. CSV files are not committed to git, and the pipeline can only partly rebuild them.
+![Residual load vs price by year](docs/figures/residual_load_vs_price.png)
 
-**Keep a backup of `data/raw/fuels/`.** Yahoo Finance no longer serves the full `TTF=F` history, so `ttf.csv` can't currently be downloaded again, and other tickers could follow. If a ticker returns too little history, `fetch_fuels.py` stops with an error and saves nothing. Restore the file from the backup and re-run.
+Each year forms its own band: residual load sets the position along the curve,
+fuel and carbon prices set its height. Their interaction (residual load × gas plant
+marginal cost) carried the most gain in LightGBM (22%, monthly model, December 2024).
 
-[paths.py](src/price_forecasting/paths.py) holds `find_project_root`, shared by all scripts so they find `data/` from any working directory.
+## Data
 
-### Project layout
-
-```
-pyproject.toml            # makes price_forecasting importable from any folder
-src/price_forecasting/
-    paths.py, columns.py  # shared helpers and column roles
-    data/                 # fetch scripts, build_base, validate_base
-    features/             # build_features: lags, calendar, interactions
-    models/               # models and evaluation (to come)
-analysis/eda.py           # exploration; 2025 excluded as the test year
-notes/                    # feature specification
-reports/figures/          # charts generated by the EDA
-```
-
-### Columns in `model_base_hourly_utc.csv`
-
-| Column | Meaning | Model input? |
+| Input | Source | Known at noon D-1 as |
 |---|---|---|
-| `price_eur_mwh` | Day-ahead price (target) | Target; lags later |
-| `load_fc_mw` | ENTSO-E day-ahead load forecast | Yes |
-| `load_actual_mw` | Realised load | No, checks only |
-| `solar_fc_mw`, `wind_on_fc_mw`, `wind_off_fc_mw` | ENTSO-E day-ahead generation forecasts | Yes |
-| `residual_load_fc_mw` | Load forecast minus wind and solar forecasts | Yes |
-| `temp_c` | Population-weighted temperature forecast (actuals where flagged) | Yes |
-| `hdh` | Heating degree hours, max(0, 15.5 − `temp_c`) | Yes |
-| `temp_is_actual` | `temp_c` comes from observed, not forecast, temperature | Flag |
-| `ttf_eur_mwh` | TTF gas front-month, last close on or before D−2 | Yes |
-| `eua_eur_t` | EU carbon allowance, last EEX auction on or before D−2 | Yes |
-| `coal_eur_t` | API2 coal front-month in €/t, last close on or before D−2 | Yes (secondary) |
-| `gas_mc_eur_mwh`, `coal_mc_eur_mwh` | Marginal cost of power from a typical gas / coal plant (fuel + carbon) | Yes |
-| `gas_minus_coal_mc` | Gas minus coal marginal cost; positive when coal is cheaper | Yes |
-| `ttf_age_d`, `eua_age_d`, `coal_age_d` | Days between the price date and the delivery day (2 = normal) | No, checks only |
-| `fc_interpolated` | A forecast value in this hour was interpolated | Flag |
-| `exclude_from_training` | Long data gap or missing price | Flag |
+| Day-ahead prices | ENTSO-E | Prices of D-1 and earlier |
+| Load, wind, solar | ENTSO-E | Day-ahead forecasts (never actuals) |
+| Gas (TTF), coal (API2) | Yahoo Finance, front-month | Last settlement on or before D-2 |
+| Carbon (EUA) | EEX primary auctions | Last auction on or before D-2 |
+| Temperature (optional) | Open-Meteo Previous Runs (GFS, day-2) | Forecast issued ~48 h ahead |
 
-### Added in `model_features_hourly_utc.csv`
+2020-2025, hourly, UTC. The quarter-hourly market since October 2025 is averaged to hourly.
 
-This file has every base column plus the features below. `columns.py` lists them in `ALL_FEATURES`, and `LEAR_DROP` names the collinear ones left out of the linear baseline.
+**Leakage rules:** forecasts only for weather-dependent inputs; no same-day price lags;
+fuel prices lagged to the last settlement before the auction; lags built on German
+wall-clock time so clock changes don't shift them; transformation parameters fitted
+on each training window only; splits by time, never shuffled.
 
-| Column | Meaning |
-|---|---|
-| `price_lag_d1`, `_d2`, `_d3`, `_d7` | Price at the same Berlin hour 1, 2, 3 and 7 days earlier |
-| `price_d1_mean`, `_min`, `_max` | Mean, lowest and highest price on D-1 |
-| `price_roll7d`, `price_roll30d` | Rolling average of daily mean prices, ending on D-1 |
-| `hour`, `dow`, `month`, `is_weekend` | Berlin-time calendar; integers, so LEAR must one-hot encode them |
-| `is_holiday`, `is_bridge_day`, `is_christmas_period` | National holidays, bridge days, and 24 Dec to 1 Jan |
-| `low_resid_flag` | Residual load forecast below 10 GW, where negative prices cluster |
-| `resid_x_gas_mc` | Residual load (GW) × gas plant marginal cost |
+## Models
 
-In this file `exclude_from_training` also covers 1–24 January 2020, which has too little price history for the lags, making 624 excluded hours in total.
+- **Naive benchmark** (Lago et al., 2021): same hour of the previous day, or of the
+  previous week for Mondays and weekends.
+- **LEAR:** one LASSO model per hour, asinh-transformed prices, recalibrated daily;
+  average of 365, 730 and 1095 day training windows.
+- **LightGBM:** one model for all hours, L1 loss, 730 day window, retrained weekly.
 
-## Design choices and why
+## Evaluation
 
-**Time handling**
-- All data is stored with a UTC index. German local time has a 23-hour day in March and a 25-hour day in October; UTC has neither, so joins and lags stay simple.
-- The period is trimmed with Berlin-time bounds (`>= 2020-01-01`, `< 2026-01-01` Europe/Berlin). That is why the files start at 2019-12-31 23:00 UTC: it is the first delivery hour of 2020 in Germany.
+Train 2020-2023, validate 2024, test 2025. All choices were made on 2024 with
+experiments and a decision rule written down before running them; the test
+protocol was committed before the 2025 run. Metrics: MAE, RMSE, bias, rMAE, and
+negative-price recall and precision, reported for all hours and for negative-price,
+low-residual-load and evening-peak hours. MAPE is not used, since it is undefined
+or misleading for prices near or below zero.
 
-**Forecasts, not actuals**
-- Load, wind and solar come from the ENTSO-E day-ahead forecasts, which are published before the auction. Using actuals would give the model information a trader does not have, and would make results look better than they can be in practice.
-- Residual load (load minus renewables) is calculated once, after cleaning. It measures how far into the thermal part of the supply curve (gas, coal) demand reaches, which is what mainly sets the price.
+## Findings
 
-**Gaps**
-- Short gaps (≤3 h) in the forecasts are interpolated over time and flagged with `fc_interpolated`.
-- Longer gaps are left missing and flagged with `exclude_from_training`. These are two full days of load forecasts missing from ENTSO-E (22 February and 24 March 2022), confirmed by re-downloading. The rows are kept so later price lags stay on a complete hourly grid. 48 hours are excluded in total.
-- Year-long price requests drop one hour per year (31 December 00:00 Berlin time, 2020–2024). The price script re-queries those hours with short requests, so no prices are missing.
+1. **Stable performance:** rMAE 0.43 -> 0.42 (LightGBM) and 0.47 -> 0.45 (LEAR)
+   from validation to test.
+2. **LEAR overshoots below zero.** Likely because its linear structure extends the
+   downward trend, while actual negative prices cluster just below zero. In 2025's
+   negative-price hours: 244 forecasts below -20 €/MWh against 84 actual hours.
+3. **Both models under-forecast the evening ramp** (17-20h bias: LightGBM -5.7, LEAR
+   -2.2 €/MWh). For LightGBM, partly because L1 loss targets the median of
+   right-skewed prices.
+4. **Scarcity spikes are missed.** Above 60 GW residual load (0.7% of 2024 hours),
+   errors average ~150 €/MWh and make up ~10% of total error.
+5. **The negative-price trade-off is not stable:** in 2024 LEAR caught more negative
+   hours; in 2025 LightGBM did. Which model suits a user depends on whether missing
+   negative hours or false alarms costs more.
 
-**Temperature**
-- Temperature is used only as a proxy for heating demand. Wind and solar already come from the ENTSO-E forecasts, so no other weather variables are needed.
-- **Source:** the Open-Meteo Historical Forecast API was rejected because it is stitched together from the first hours of each model run, so it behaves almost like observed weather. The Previous Runs API keeps genuinely older forecasts. `temperature_2m_previous_day2` comes from a run at least ~48 h old, which is before noon D-1 for every hour of D.
-- **One model:** GFS is pinned for the whole period so that forecast quality does not change mid-sample. It is coarser than ICON or ECMWF, but temperature is the variable models forecast best, and GFS is the only one with history before 2024 (from 2021-03-25).
-- **Fallback to observed temperature** for hours with no forecast: all of 2020, early 2021 and a few GFS gaps, marked by `temp_is_actual`. This keeps the same 2020–2025 window as the other data. Over the 41,315 hours with both, forecasts miss by 0.94 °C on average (0.84–1.07 °C in the heating season), so the fallback only slightly flatters the early period. The forecast also runs about 0.4–0.75 °C warm in winter, which is worth remembering if 2020 behaves differently.
-- **Population-weighted average** of Berlin, Hamburg, Munich, Cologne and Frankfurt, because heating demand follows where people live.
-- **Heating degree hours** rather than raw temperature, because heating demand only rises below a threshold (15.5 °C).
-- **Expected value is modest.** The ENTSO-E load forecast already includes the effect of temperature on demand, and most German heating runs on gas rather than electricity. Whether temperature adds anything beyond the load forecast will be tested with and without it.
+Longer-run price trends and autocorrelation are analysed in the earlier exploration
+[de-power-price-analysis](https://github.com/1412richa/de-power-price-analysis),
+included here as a submodule.
 
-**Fuel and carbon prices**
-- Gas and carbon prices set the cost of the gas and coal plants that usually set the German price, so they move the whole price level. In 2022 they explain most of the price spike.
-- **Gas:** TTF front-month from yfinance. It stands in for German gas costs (THE hub); the two are usually close but diverged in 2022.
-- **Carbon:** official EEX auction results in €/t. ENTSO-E has no carbon prices and yfinance has no clean €/t EUA series. The closest, an exchange-traded product, drifts away from the EUA price over time.
-- **Coal:** API2 Rotterdam front-month from yfinance, converted to €/t. It is kept as a secondary feature because the free series has artefacts: the front month settles against a monthly average, so it goes flat late in the month and jumps at the roll.
-- **One timing rule for all three:** delivery day D gets the last value dated on or before D−2, i.e. the newest value published before noon on D-1. Futures settle in the evening, so the D-1 close is not yet known. The D-1 EUA auction result (about 11:00) is technically known but deliberately not used, to keep one simple, safe rule. Age columns show how stale each value is, e.g. EUA during the six-week auction break around the start of 2021.
-- **Marginal costs:** the script combines them into the cost of producing 1 MWh of power in a typical gas plant (50% efficient) and coal plant (40%), fuel plus carbon. These usually explain prices better than the raw prices, especially in the linear baseline, and their difference shows when coal was cheaper than gas (almost every day in 2021–2022). Formulas and constants are in [notes/features.md](notes/features.md).
+## Limitations
 
-**Lags and clock changes**
-- Lags look up the same Berlin hour rather than counting 24 rows, which would pick the wrong hour around clock changes. For a lag that lands on the repeated October hour, the two prices are averaged. For one that lands on the skipped March hour, the neighbouring hours are averaged.
-- All D-1 prices can be used because they were set by the previous day's auction, so they are known before noon on D-1.
+- Scarcity price spikes are systematically under-forecast.
+- No actual wind/solar data, so input forecast errors can't be separated from model errors.
+- Hourly resolution; the 15-minute market is not modelled.
+- Free front-month fuel prices are proxies for what plants actually pay;
+  the German gas hub (THE) traded at a premium to TTF in 2022.
+- Weather data is lower quality than professional forecasters use.
 
-**Linear baseline**
-- `LEAR_DROP` follows the EDA findings ([analysis/eda_findings.md](analysis/eda_findings.md)): of the fuel features, LEAR keeps only gas marginal cost and the gas–coal gap. It also drops `load_fc_mw`, because residual load is an exact combination of load, wind and solar.
+## Reproduce
 
-## Validation
-
-[validate_base.py](src/price_forecasting/data/validate_base.py) is read-only and can run after any pipeline step. It checks the hourly index and daylight-saving days, missing values, plausible ranges, that no fuel price is newer than D−2, and that every column has exactly one role (target, feature, optional feature, flag or diagnostic) as defined in [columns.py](src/price_forecasting/columns.py). `build_features.py` runs the same role check on its own output, confirms that rows used for training have no missing values, and flags any lag suspiciously close to the target.
-
-## Next steps
-
-- Time-based train/validation/test split, then baseline vs LightGBM vs LSTM
-
-## Setup
-
-From the repository root:
+From the repository root (the requirements file installs this project as a package):
 
 ```
-python -m venv .venv
-.venv/Scripts/activate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+# ENTSOE_API_KEY in .env (repository root)
 ```
 
-Add `ENTSOE_API_KEY=your_key` to a `.env` file in the repository root. Open-Meteo needs no key.
+Run in order: `fetch_prices.py`, `fetch_fundamentals.py`, `fetch_weather.py`,
+`fetch_fuels.py`, `build_base.py`, `validate_base.py`, `build_features.py`,
+`run_baselines.py`, `LEAR.py`, `lightgbm_model.py`, `error_analysis.py`, `test_report.py`.
 
-The `de-power-price-analysis/` folder is an earlier, separate exploration of German power prices.
+- **Gas prices:** Yahoo Finance no longer serves the full `TTF=F` history, so
+  `data/raw/fuels/ttf.csv` must be restored from a backup; `fetch_fuels.py` stops with
+  an error rather than save a partial series. EEX auction files are downloaded automatically.
+- **Run time:** the 2024 experiments in `LEAR.py` and `lightgbm_model.py` take about
+  two hours in total. Their final-test cells were run once, on 2025; re-running them is
+  only needed to reproduce the test.
+- **Figures:** scripts save to `reports/figures/` (not tracked); the ones shown here
+  are copies in `docs/figures/`.
+
+Design notes: `notes/features.md`, `notes/evaluation.md`, `notes/results_log.md`.
