@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from price_forecasting.columns import VAL_YEAR
-from price_forecasting.models.evaluation import split, lago_naive, P
+from price_forecasting.models.evaluation import split, lago_naive, summarise, P
 from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
@@ -118,6 +118,9 @@ print(e.loc[big].groupby(pd.cut(e.loc[big, "resid_gw"], [-40, 10, 30, 50, 90]),
 # Simple average of both models: post-hoc (chosen after seeing 2024), so judge it on the test year only
 e["avg"] = (e["lgbm"] + e["lear"]) / 2
 print("MAE of the average forecast:", (e["avg"] - e["actual"]).abs().mean().round(2))
+# Saved so the test report can compare the average's 2024 and test-year results
+avg_val = pd.DataFrame([summarise(val, e["avg"].reindex(val.index), "average_lgbm_lear")]).set_index("model")
+avg_val.to_csv(RESULTS / "average_lgbm_lear_val.csv")
 
 # %%
 # compare how often each model catches negative-price hours
