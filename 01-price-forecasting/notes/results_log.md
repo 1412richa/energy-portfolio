@@ -62,3 +62,21 @@ Limitations
 - Scarcity price spikes systematically under-forecast by both models.
 - No actual wind/solar data, so forecast-input errors can't be separated from model errors.
 - Hourly resolution; the 15-minute market since Oct 2025 is not modelled.
+
+## Final test (2025, run once, protocol committed beforehand)
+Headline: lgbm_weekly -> MAE 11.52, RMSE 19.88, rMAE 0.42 (2024: 0.43)
+lear_avg -> MAE 12.28, rMAE 0.45 (2024: 0.47)
+Average of both (post hoc, reported alongside) -> MAE 10.91, rMAE 0.40
+
+Findings
+1. Validation and test performance stable; no sign of overfitting to 2024. The test year
+   was not easier: Lago naive MAE 27.29 (2024) vs 27.47 (2025).
+2. Negative-price trade-off reversed vs 2024: LightGBM recall 0.76 / precision 0.77,
+   LEAR 0.66 / 0.83. Not a stable model property. Possible cause: 2024's many
+   negative hours in LightGBM's 2025 training data (hypothesis).
+3. LEAR overshoots below zero in both years: in negative-price hours, 244 forecasts < -20
+   vs 84 actual (2025; 2024: 227 vs 88).
+4. Average forecast: best overall, worse than LightGBM in negative-price hours (17.1 vs 11.6).
+5. Evening-ramp under-forecast persists (LightGBM bias -5.7 at 17-20h).
+6. Oct-Dec 2025 (15-min market, averaged to hourly), reported separately as declared in
+   the protocol: LEAR 10.0 vs LightGBM 10.5 MAE. Few negative hours (51); not interpreted.
