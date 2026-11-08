@@ -7,7 +7,7 @@ from sklearn.linear_model import LassoLarsIC
 from sklearn.preprocessing import StandardScaler
 from joblib import Parallel, delayed
 from price_forecasting.models.evaluation import split, evaluate, negative_price_table, summarise, P
-from price_forecasting.columns import VAL_YEAR
+from price_forecasting.columns import VAL_YEAR, HOLDOUT_YEAR
 from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
@@ -140,3 +140,20 @@ summary = pd.DataFrame([summarise(val, lear_preds[w], f"lear_{w}d" if w != "avg"
                         for w in [365, 730, 1095, "avg"]]).set_index("model")
 print(summary.round(3).sort_values("MAE"))
 summary.to_csv(RESULTS / "lear_windows_val.csv")
+
+# %%
+# FINAL TEST — run once. Needs only the setup, wide-format, feature and forecast_day cells above.
+_, _, test = split(df)
+test_days = pd.date_range(f"{HOLDOUT_YEAR}-01-01", f"{HOLDOUT_YEAR}-12-31", freq="D")
+key_test = pd.MultiIndex.from_arrays([test["_date"], test["_hour"]])
+
+parts = []
+for w in [365, 730, 1095]:
+    pw = pd.DataFrame(Parallel(n_jobs=-1)(
+        delayed(forecast_day)(D, window_days=w) for D in test_days))
+    pw.to_csv(RESULTS / f"test_lear_{w}d_wide.csv")
+    parts.append(pd.Series(pw.stack().reindex(key_test).to_numpy(), index=test.index))
+
+lear_test = pd.concat(parts, axis=1).mean(axis=1)
+print("Missing forecasts:", lear_test.isna().sum())
+lear_test.to_frame("lear").to_csv(RESULTS / "test_lear_avg.csv")
