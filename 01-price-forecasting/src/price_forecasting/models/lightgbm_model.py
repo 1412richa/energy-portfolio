@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import lightgbm as lgb
 from price_forecasting.models.evaluation import split, evaluate, negative_price_table, summarise, P
-from price_forecasting.columns import ALL_FEATURES, OPTIONAL_FEATURES, INTERACTION_FEATURES, VAL_YEAR
+from price_forecasting.columns import ALL_FEATURES, OPTIONAL_FEATURES, INTERACTION_FEATURES, VAL_YEAR, HOLDOUT_YEAR
 from price_forecasting.paths import find_project_root
 
 PROJECT = find_project_root()
@@ -41,13 +41,15 @@ PARAMS = dict(
 )
 
 # %%
-# Train LightGBM model on rolling monthly windows
+# Training data: the window_days before a retrain date, without excluded rows
 def train_window(month_start, window_days=730):
     start = month_start - pd.Timedelta(days=window_days)
     mask = ((local_date >= start) & (local_date < month_start)
             & ~df["exclude_from_training"].astype(bool) & df[P].notna())
     return df[mask]
 
+# %%
+# Train LightGBM model on rolling monthly windows
 months = pd.date_range(f"{VAL_YEAR}-01-01", f"{VAL_YEAR}-12-01", freq="MS")
 preds, models = [], {}
 t0 = time.time()
@@ -90,14 +92,16 @@ imp = pd.Series(last.booster_.feature_importance("gain"), index=X_COLS)
 print((imp / imp.sum() * 100).sort_values(ascending=False).head(15).round(1))
 
 # %%
-# reuseable functions for rolling-window training and evaluation
+# Reusable function for retraining and forecasting a given year with rolling windows
 _, val, _ = split(df)
 
-def run_lgbm(params=PARAMS, x_cols=X_COLS, window_days=730, freq="MS", target="raw"):
-    # Always start on 1 January, even when a weekly freq would first land later in the week
-    first = pd.Timestamp(f"{VAL_YEAR}-01-01")
-    starts = pd.date_range(first, f"{VAL_YEAR}-12-31", freq=freq).union([first])
-    bounds = list(starts) + [pd.Timestamp(f"{VAL_YEAR + 1}-01-01")]
+def run_lgbm(params=PARAMS, x_cols=X_COLS, window_days=730, freq="MS",
+             target="raw", year=VAL_YEAR):
+    first, end = pd.Timestamp(f"{year}-01-01"), pd.Timestamp(f"{year + 1}-01-01")
+    starts = pd.date_range(first, end - pd.Timedelta(days=1), freq=freq)
+    if starts[0] != first:
+        starts = starts.insert(0, first)          # cover days before the first retrain date
+    bounds = list(starts) + [end]
     cats = [c for c in CAT_COLS if c in x_cols]
     preds = []
     for s, e in zip(bounds[:-1], bounds[1:]):
@@ -113,7 +117,7 @@ def run_lgbm(params=PARAMS, x_cols=X_COLS, window_days=730, freq="MS", target="r
         if target == "asinh":
             p = np.sinh(p) * mad + med
         preds.append(pd.Series(p, index=te.index))
-    return pd.concat(preds).reindex(val.index)
+    return pd.concat(preds)
 
 
 # %%
@@ -137,7 +141,7 @@ experiments = {
 summary, preds_store = [], {}
 for name, kwargs in experiments.items():
     t0 = time.time()
-    preds_store[name] = run_lgbm(**kwargs)
+    preds_store[name] = run_lgbm(**kwargs).reindex(val.index)
     summary.append(summarise(val, preds_store[name], name))
     print(f"{name}: {time.time() - t0:.0f} s")
 
@@ -146,3 +150,10 @@ print(summary.round(3).sort_values("MAE"))
 summary.to_csv(RESULTS / "lgbm_experiments_val.csv")
 # One column per experiment, hourly UTC index, so they can be compared hour by hour later
 pd.DataFrame(preds_store).to_csv(RESULTS / "lgbm_experiments_val_predictions.csv")
+
+# %%
+# FINAL TEST — run once. Needs only the setup, PARAMS, train_window and run_lgbm cells above.
+_, _, test = split(df)
+lgbm_test = run_lgbm(freq="W-MON", year=HOLDOUT_YEAR).reindex(test.index)
+print("Missing forecasts:", lgbm_test.isna().sum())
+lgbm_test.to_frame("lgbm").to_csv(RESULTS / "test_lgbm_weekly.csv")
