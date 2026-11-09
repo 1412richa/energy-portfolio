@@ -16,6 +16,7 @@ carbon costs.
 
 **Dashboard:** [explore any day of the 2025 forecasts in a Streamlit app](https://energy-portfolio-richa.streamlit.app/)
 (`streamlit run 01-price-forecasting/app/app.py` from the repository root).
+
 Data: ENTSO-E Transparency Platform, EEX, Yahoo Finance, Open-Meteo.
 
 ---
