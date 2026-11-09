@@ -10,6 +10,9 @@ between validation (2024: rMAE 0.43) and test.
 
 ![Forecasts vs actual prices, June 2025](docs/figures/test_two_weeks.png)
 
+**Dashboard:** explore any day of the 2025 forecasts in a Streamlit app
+(`streamlit run 01-price-forecasting/app/app.py` from the repository root).
+
 ## Results
 
 | Model | MAE 2024 (val) | MAE 2025 (test) | rMAE 2025 | Negative-price recall / precision 2025 |
@@ -123,5 +126,8 @@ Run in order: `fetch_prices.py`, `fetch_fundamentals.py`, `fetch_weather.py`,
   only needed to reproduce the test.
 - **Figures:** scripts save to `reports/figures/` (not tracked); the ones shown here
   are copies in `docs/figures/`.
+- **Dashboard:** `app/export_app_data.py` writes the test forecasts and metrics to
+  `app/data/` (tracked, so the app runs without the pipeline). The app only needs
+  `app/requirements.txt`.
 
 Design notes: `notes/features.md`, `notes/evaluation.md`, `notes/results_log.md`.

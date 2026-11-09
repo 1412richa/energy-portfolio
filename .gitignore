@@ -220,6 +220,7 @@ __marimo__/
 
 # CSV files
 *.csv
+!01-price-forecasting/app/data/*.csv
 
 # Excel files
 *.xls
