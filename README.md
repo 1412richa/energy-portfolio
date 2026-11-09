@@ -13,6 +13,7 @@ gate closure. On the held-out 2025 test year, LightGBM reaches an MAE of 11.5 â‚
 58% below a naive benchmark and ahead of a LEAR statistical benchmark (12.3).
 Features built from market fundamentals: residual load forecasts and gas, coal and
 carbon costs.
+
 **Dashboard:** [explore any day of the 2025 forecasts in a Streamlit app](https://energy-portfolio-richa.streamlit.app/)
 (`streamlit run 01-price-forecasting/app/app.py` from the repository root).
 Data: ENTSO-E Transparency Platform, EEX, Yahoo Finance, Open-Meteo.
