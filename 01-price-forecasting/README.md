@@ -8,7 +8,7 @@ with gradient boosting (LightGBM).
 **11.5 €/MWh**, 58% lower than a naive benchmark (rMAE 0.42). Performance was stable
 between validation (2024: rMAE 0.43) and test.
 
-![Forecasts vs actual prices, June 2025](docs/figures/test_two_weeks.png)
+![Forecast error by month in the 2025 test year: naive benchmark, LEAR and LightGBM](docs/figures/test_mae_by_month.png)
 
 **Dashboard:** [explore any day of the 2025 forecasts in a Streamlit app](https://energy-portfolio-richa.streamlit.app/)
 (`streamlit run 01-price-forecasting/app/app.py` from the repository root).
@@ -35,11 +35,11 @@ Two quantities determine it:
 - **How expensive those plants are:** gas and coal plant marginal costs,
   built from TTF gas, API2 coal and EU carbon prices.
 
-![Residual load vs price by year](docs/figures/residual_load_vs_price.png)
+![LightGBM feature importance: residual load × gas plant cost leads](docs/figures/lgbm_feature_importance.png)
 
-Each year forms its own band: residual load sets the position along the curve,
-fuel and carbon prices set its height. Their interaction (residual load × gas plant
-marginal cost) carried the most gain in LightGBM (22%, monthly model, December 2024).
+Residual load sets the position along the merit order, fuel and carbon prices set the
+height of the curve. LightGBM relies most on their interaction (residual load × gas plant
+marginal cost, 22% of the gain in the final 2025 model), followed by residual load itself.
 
 ## Data
 
@@ -52,6 +52,24 @@ marginal cost) carried the most gain in LightGBM (22%, monthly model, December 2
 | Temperature (optional) | Open-Meteo Previous Runs (GFS, day-2) | Forecast issued ~48 h ahead |
 
 2020-2025, hourly, UTC. The quarter-hourly market since October 2025 is averaged to hourly.
+
+### Data sources and licences
+
+Raw data is used for modelling but not redistributed. The repository, figures and dashboard
+contain only own results (forecasts, error metrics, model diagnostics) and the
+openly licensed load forecast.
+
+| Source | Used for | Terms | Published here |
+|---|---|---|---|
+| [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/): day-ahead total load forecast (Art. 6.1.b) | Model input; shown in the dashboard | On ENTSO-E's list of data for free re-use: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Yes, in the dashboard: hourly average, converted to GW |
+| ENTSO-E Transparency Platform: day-ahead prices (12.1.d), wind and solar day-ahead forecasts (14.1.d), actual load (6.1.a) | Target, model inputs, evaluation | Not on the free re-use list; owned by the power exchanges (prices) and TSOs | No; only errors computed against them |
+| [EEX](https://www.eex.com/) primary auction results (EUA) | Model input | EEX terms of use | No |
+| Yahoo Finance: TTF gas (`TTF=F`), API2 coal (`MTF=F`), EUR/USD | Model inputs | Yahoo terms of use; personal use | No |
+| [Open-Meteo](https://open-meteo.com/): temperature (optional feature) | Tested as a feature | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | No |
+
+Attribution: load forecast © ENTSO-E Transparency Platform, CC BY 4.0, aggregated to hourly
+averages and converted to GW. Weather data by Open-Meteo.com, CC BY 4.0.
+The MIT licence of this repository covers the code only, not the data.
 
 **Leakage rules:** forecasts only for weather-dependent inputs; no same-day price lags;
 fuel prices lagged to the last settlement before the auction; lags built on German
@@ -124,8 +142,9 @@ Run in order: `fetch_prices.py`, `fetch_fundamentals.py`, `fetch_weather.py`,
 - **Run time:** the 2024 experiments in `LEAR.py` and `lightgbm_model.py` take about
   two hours in total. Their final-test cells were run once, on 2025; re-running them is
   only needed to reproduce the test.
-- **Figures:** scripts save to `reports/figures/` (not tracked); the ones shown here
-  are copies in `docs/figures/`.
+- **Figures:** analysis scripts save to `reports/figures/` (not tracked). The figures shown
+  here are made by `analysis/readme_figures.py` and saved to `docs/figures/`; they contain
+  only error metrics and model diagnostics, no raw prices.
 - **Dashboard:** `app/export_app_data.py` writes the test forecasts and metrics to
   `app/data/` (tracked, so the app runs without the pipeline). The app only needs
   `app/requirements.txt`.

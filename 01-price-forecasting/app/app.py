@@ -70,5 +70,6 @@ with st.expander("Method"):
         "- Full code and write-up: [GitHub](https://github.com/1412richa/energy-portfolio)"
     )
 
-st.caption("Load forecast: ENTSO-E Transparency Platform, day-ahead total load forecast "
-           "(CC BY 4.0). Forecasts and error metrics: own models.")
+st.caption("Load forecast: © ENTSO-E Transparency Platform, day-ahead total load forecast, "
+           "[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); aggregated to hourly "
+           "averages and converted to GW. Forecasts and error metrics: own models.")
