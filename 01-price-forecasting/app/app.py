@@ -5,16 +5,18 @@ import streamlit as st
 
 st.set_page_config(page_title="DE day-ahead price forecasts", layout="wide")
 DATA = Path(__file__).parent / "data"
-MODELS = {"actual": "Actual", "lgbm": "LightGBM", "lear": "LEAR"}
+MODELS = {"lgbm": "LightGBM", "lear": "LEAR"}
 
 @st.cache_data
 def load():
     d = pd.read_csv(DATA / "test_predictions.csv", index_col=0)
     d.index = pd.to_datetime(d.index, utc=True).tz_convert("Europe/Berlin")
+    daily = pd.read_csv(DATA / "test_daily_mae.csv", index_col=0)
+    daily.index = pd.to_datetime(daily.index).date
     r = pd.read_csv(DATA / "test_results.csv")
-    return d, r
+    return d, daily, r
 
-d, r = load()
+d, daily, r = load()
 year = d.index.year.min()
 
 st.title("German day-ahead electricity price forecasts")
@@ -39,16 +41,19 @@ sel = d[d.index.date == day]
 
 fig = go.Figure()
 for col, name in MODELS.items():
-    fig.add_scatter(x=sel.index, y=sel[col], name=name, mode="lines+markers")
+    fig.add_scatter(x=sel.index, y=sel[col], name=f"{name} forecast", mode="lines+markers")
 fig.add_hline(y=0, line_width=1, line_color="grey")
 fig.update_layout(yaxis_title="€/MWh", xaxis_title="Berlin time",
                   height=420, margin=dict(t=20))
 st.plotly_chart(fig, width="stretch")
+st.caption("Actual prices are not shown: day-ahead prices are not on ENTSO-E's list of "
+           "freely re-usable data. Daily errors below are computed against them.")
 
 m1, m2, m3 = st.columns(3)
-m1.metric("LightGBM MAE (day)", f"{(sel['lgbm'] - sel['actual']).abs().mean():.1f} €/MWh")
-m2.metric("LEAR MAE (day)", f"{(sel['lear'] - sel['actual']).abs().mean():.1f} €/MWh")
-m3.metric("Min residual load forecast", f"{sel['resid_gw'].min():.1f} GW")
+m1.metric("LightGBM MAE (day)", f"{daily.loc[day, 'mae_lgbm']:.1f} €/MWh")
+m2.metric("LEAR MAE (day)", f"{daily.loc[day, 'mae_lear']:.1f} €/MWh")
+m3.metric("Load forecast (min to peak)",
+          f"{sel['load_fc_gw'].min():.0f} to {sel['load_fc_gw'].max():.0f} GW")
 
 # Results table
 st.subheader(f"MAE by subset ({year}, €/MWh)")
@@ -65,4 +70,5 @@ with st.expander("Method"):
         "- Full code and write-up: [GitHub](https://github.com/1412richa/energy-portfolio)"
     )
 
-st.caption("Data: ENTSO-E Transparency Platform (prices, load, wind and solar forecasts).")
+st.caption("Load forecast: ENTSO-E Transparency Platform, day-ahead total load forecast "
+           "(CC BY 4.0). Forecasts and error metrics: own models.")

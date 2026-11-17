@@ -20,17 +20,29 @@ def load(name, col):
     s.index = pd.to_datetime(s.index, utc=True)
     return s.reindex(test.index)
 
-# Only what the app shows; generic file names so the app needs no project imports
+# Only what the app shows; generic file names so the app needs no project imports.
+# Actual prices and wind/solar-based series are not on ENTSO-E's free re-use list, so
+# they are not published: only own forecasts and the day-ahead load forecast (6.1.b,
+# CC BY 4.0). Hourly errors are not exported either, as forecast minus error = price.
+lgbm, lear = load("test_lgbm_weekly.csv", "lgbm"), load("test_lear_avg.csv", "lear")
 out = pd.DataFrame({
-    "actual": test[P],
-    "lgbm": load("test_lgbm_weekly.csv", "lgbm"),
-    "lear": load("test_lear_avg.csv", "lear"),
-    "resid_gw": test["residual_load_fc_mw"] / 1000,
+    "lgbm": lgbm,
+    "lear": lear,
+    "load_fc_gw": test["load_fc_mw"] / 1000,
 }).round(2)
 out.index.name = "timestamp_utc"
 assert not out.isna().any().any(), "Missing values in the app data"
 out.to_csv(APP_DATA / "test_predictions.csv")
 
+# Daily mean absolute error per model: an aggregate that does not reveal hourly prices
+local_date = test.index.tz_convert("Europe/Berlin").date
+daily = pd.DataFrame({
+    "mae_lgbm": (lgbm - test[P]).abs().groupby(local_date).mean(),
+    "mae_lear": (lear - test[P]).abs().groupby(local_date).mean(),
+}).round(2)
+daily.index.name = "date"
+daily.to_csv(APP_DATA / "test_daily_mae.csv")
+
 pd.read_csv(RESULTS / f"test_results_{HOLDOUT_YEAR}.csv").round(3).to_csv(
     APP_DATA / "test_results.csv", index=False)
-print(out.shape, out.index.min(), out.index.max())
+print(out.shape, daily.shape, list(out.columns))
