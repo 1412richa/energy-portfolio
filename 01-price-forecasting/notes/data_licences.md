@@ -33,11 +33,22 @@ earlier figures in their git history. Rewriting history is deferred until the re
 | Date sent | To | About | Status |
 |---|---|---|---|
 | 19.11.2026 | EPEX SPOT market data team | DE-LU day-ahead prices: model training and evaluation; displaying actual prices next to forecasts | Awaiting reply |
-| 19.11.2026 | ENTSO-E Transparency Platform | Wind/solar day-ahead forecasts (14.1.d) and day-ahead prices (12.1.d): model training and evaluation, publishing own forecasts and aggregate errors; whom to contact for the data owners | Awaiting reply |
+| 19.11.2026 | ENTSO-E Transparency Platform | Wind/solar day-ahead forecasts (14.1.d) and day-ahead prices (12.1.d): model training and evaluation, publishing own forecasts and aggregate errors; whom to contact for the data owners | Replied: contact the member TSOs directly (see below) |
+| 21.11.2026 | German TSOs (50Hertz, Amprion, TenneT, TransnetBW), via the netztransparenz.de contact form, recipient "an alle Übertragungsnetzbetreiber"; in German | Wind/solar day-ahead forecasts (14.1.d) as model inputs only, publishing own forecasts and aggregate errors; attribution | Awaiting reply |
+| 21.11.2026 | Creos Luxembourg (Luxembourg TSO, part of the DE-LU zone); in English | Same request as to the German TSOs: wind/solar day-ahead forecasts (14.1.d) as model inputs only; attribution | Awaiting reply |
 
 Follow up around 03.12-10.12.2026 if there is no reply. Record replies and resulting decisions
 (restoring price charts, history rewrite, attribution wording) below.
 
 ## Replies and decisions
 
-_None yet._
+**ENTSO-E Transparency Platform (reply received by 19.11.2026):** ENTSO-E does not decide on
+re-use of this data itself; it referred the request to the member TSOs, to be contacted directly
+via its members page: https://www.entsoe.eu/about/inside-entsoe/members/
+
+Next step: contact the TSOs responsible for the DE-LU wind/solar day-ahead forecasts (14.1.d).
+Day-ahead prices remain with EPEX SPOT (request of 19.11.2026, awaiting reply).
+
+**21.11.2026:** request sent to the four German TSOs jointly via netztransparenz.de, which covers
+the German TSOs only. The same request was sent separately to Creos Luxembourg (also part of the
+DE-LU zone, small share), so all TSOs of the bidding zone have now been contacted.
